@@ -17,6 +17,9 @@ function App() {
         >
           Learn React today
         </a>
+        <form action="/create" method="post">
+          <input type="submit" value="Create game"></input>
+        </form>
       </header>
     </div>
   );
