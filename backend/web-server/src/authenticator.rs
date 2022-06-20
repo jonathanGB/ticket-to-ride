@@ -52,7 +52,7 @@ impl Authenticator {
         Err(_) => Outcome::Failure((Status::Unauthorized, AuthenticatorError::InvalidPlayerId)),
       }
     } else {
-      return Outcome::Failure((Status::Unauthorized, AuthenticatorError::Unauthenticated));
+      Outcome::Failure((Status::Unauthorized, AuthenticatorError::Unauthenticated))
     }
   }
 }
