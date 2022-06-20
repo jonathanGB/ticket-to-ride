@@ -5,6 +5,7 @@ extern crate rocket;
 
 mod authenticator;
 mod controller;
+mod model;
 
 use controller::Controller;
 use rocket::{
