@@ -36,7 +36,11 @@
           "points": "<number>"
         }
       ],
-      "last_move_description": "<string> -- Human-readable sentence",
+      "last_actions": {
+        "turn": "<number> -- maps to the global `turn`, to disambiguate actions this turn versus last cycle.",
+        "actions": "[2]<enum> -- maps to action code (e.g. picked wild card, drew destination cards). Note that a turn can have at most two actions.",
+        "description": "<string> -- Human-readable description of the actions, shared with all players"
+      },
       "routes_owned": [
         {
           "start": "<enum_string> -- maps to a city",
