@@ -7,6 +7,15 @@ import reportWebVitals from './reportWebVitals';
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
+
+function poll() {
+  fetch(`${window.location.pathname}/state`).then(response => response.json()).then(game_state => {
+    // my logic.
+
+    setTimeout(poll, 1000);
+  })
+}
+
 root.render(
   <React.StrictMode>
     <App />
