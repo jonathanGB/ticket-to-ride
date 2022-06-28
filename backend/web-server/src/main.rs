@@ -16,14 +16,25 @@ use rocket::{
 };
 use std::path::{Path, PathBuf};
 
-const STATIC_FILES_PATH: &str = "../../frontend/build";
+const BUILD_FILES_PATH: &str = "../../frontend/build";
+const STATIC_FILES_PATH: &str = "../../frontend/build/static";
 
 #[get("/")]
-async fn index() -> std::io::Result<NamedFile> {
-    NamedFile::open(Path::new(STATIC_FILES_PATH).join("index.html")).await
+async fn root() -> std::io::Result<NamedFile> {
+    NamedFile::open(Path::new(BUILD_FILES_PATH).join("index.html")).await
 }
 
-#[get("/<file..>")]
+#[get("/index.html")]
+fn index() -> Redirect {
+    Redirect::permanent(uri!(root()))
+}
+
+#[get("/robots.txt")]
+async fn robots() -> std::io::Result<NamedFile> {
+    NamedFile::open(Path::new(BUILD_FILES_PATH).join("robots.txt")).await
+}
+
+#[get("/static/<file..>")]
 async fn serve_static_files(file: PathBuf) -> std::io::Result<NamedFile> {
     NamedFile::open(Path::new(STATIC_FILES_PATH).join(file)).await
 }
@@ -43,6 +54,13 @@ fn create_game() -> Redirect {
 fn rocket() -> _ {
     rocket::build().mount(
         "/",
-        routes![index, serve_static_files, create_game, load_game],
+        routes![
+            root,
+            index,
+            robots,
+            serve_static_files,
+            create_game,
+            load_game,
+        ],
     )
 }

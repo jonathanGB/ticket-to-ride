@@ -3,7 +3,7 @@
   "created_at": "<date_time>",
   "started_at": "<date_time>",
   "finished_at": "<date_time>",
-  "state": "lobby|starting|playing|last_turn|finished",
+  "phase": "lobby|starting|playing|last_turn|finished",
   "turn": "<number> -- modulo `players.length` maps to an index in `players`",
   "face_up_cards_deck": "[]enum_string -- maps to a `colour`, of a maximum of length 5",
   "wagon_cards_deck": "[]enum_string -- maps to a `colour`",
@@ -33,7 +33,8 @@
         {
           "start": "<enum_string> -- maps to a city",
           "end": "<enum_string> -- maps to a city",
-          "points": "<number>"
+          "points": "<number>",
+          "finished": "<bool>"
         }
       ],
       "last_actions": {
