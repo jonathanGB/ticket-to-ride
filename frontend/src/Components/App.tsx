@@ -1,6 +1,6 @@
 import React from 'react';
-import './App.css';
-import Map from './Components/Map';
+import '../CSS/App.css';
+import Map from './Map';
 
 class App extends React.Component {
   constructor(props: {} | Readonly<{}>) {
@@ -8,12 +8,12 @@ class App extends React.Component {
   }
   render() {
     return <div className="App-header">
-    <header>
-    <form action="/create" method="post">
-      <input className="create-button" type="submit" value="Create game" />
-    </form>
-    </header>
-    <Map />
+      <header>
+        <form action="/create" method="post">
+          <input className="create-button" type="submit" value="Create game" />
+        </form>
+      </header>
+      <Map />
     </div>
   }
 };
