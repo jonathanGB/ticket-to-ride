@@ -86,6 +86,7 @@ struct Foo {
     pub foo: usize,
     pub bar: bool,
     pub game_id: Uuid,
+    pub phase: String,
 }
 
 #[get("/game/<game_id>/state")]
@@ -94,6 +95,7 @@ fn get_game_state(game_id: Uuid, cookies: &CookieJar) -> Json<Foo> {
         foo: 5,
         bar: true,
         game_id,
+        phase: String::from("in_lobby"),
     })
 }
 
