@@ -1,6 +1,6 @@
 import React from 'react';
 import SvgComponent from './svg';
-
+// Test comment.
 class Map extends React.Component {
     constructor(props: any) {
         super(props);
@@ -14,7 +14,7 @@ class Map extends React.Component {
         height:"100%",
         width:"100%",
         transform: "rotate(348deg)",
-        textAlign: "center" as "center",
+        textAlign: "center",
     };
 
     render() {
