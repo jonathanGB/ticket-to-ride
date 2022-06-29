@@ -4,6 +4,8 @@ use crate::train_color::TrainColor::*;
 use smallvec::SmallVec;
 use std::collections::HashMap;
 
+// TODO: remove this comment.
+
 /// Top-level representation of a connection between two cities.
 /// Note that a `Route` from A to B is equal to a `Route` from B to A.
 #[derive(Eq, Hash, Debug)]
