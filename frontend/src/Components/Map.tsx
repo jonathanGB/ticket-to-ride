@@ -1,6 +1,6 @@
 import React from 'react';
 import SvgComponent from './svg';
-// Test comment.
+//testing testing 1 2 3
 class Map extends React.Component {
     constructor(props: any) {
         super(props);
