@@ -1,8 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './CSS/index.css';
-import App from './Components/App';
 import reportWebVitals from './reportWebVitals';
+import CreateGame from './Components/CreateGame';
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
@@ -18,7 +18,7 @@ function poll() {
 
 root.render(
   <React.StrictMode>
-    <App />
+    <CreateGame />
   </React.StrictMode>
 );
 
