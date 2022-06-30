@@ -1,19 +1,15 @@
 import React from 'react';
 import '../CSS/App.css';
-import Map from './Map';
+import Main from './Main';
 
 class App extends React.Component {
   constructor(props: {} | Readonly<{}>) {
     super(props);
   }
   render() {
-    return <div className="App-header">
-      <header>
-        <form action="/create" method="post">
-          <input className="create-button" type="submit" value="Create game" />
-        </form>
-      </header>
-      <Map />
+    console.log("hit app")
+    return <div className="main-header">
+      <Main />
     </div>
   }
 };

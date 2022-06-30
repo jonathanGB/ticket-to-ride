@@ -2,25 +2,33 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './CSS/index.css';
 import reportWebVitals from './reportWebVitals';
-import CreateGame from './Components/CreateGame';
+import App from './Components/App';
+import { BrowserRouter } from 'react-router-dom';
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
 
-function poll() {
-  fetch(`${window.location.pathname}/state`).then(response => response.json()).then(game_state => {
-    // my logic.
-
-    setTimeout(poll, 1000);
-  })
-}
-
 root.render(
-  <React.StrictMode>
-    <CreateGame />
-  </React.StrictMode>
+  <BrowserRouter>
+    <App /> {/* The various pages will be displayed by the `Main` component. */}
+  </BrowserRouter>
 );
+
+console.log("built here")
+// function poll() {
+//   fetch(`${window.location.pathname}/state`).then(response => response.json()).then(game_state => {
+//     // my logic.
+
+//     setTimeout(poll, 1000);
+//   })
+// }
+
+// root.render(
+//   <React.StrictMode>
+//     <CreateGame />
+//   </React.StrictMode>
+// );
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))

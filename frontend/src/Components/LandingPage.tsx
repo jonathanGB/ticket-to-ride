@@ -1,12 +1,13 @@
 import React from 'react';
-import './CSS/CreateGame.css';
+import '../CSS/LandingPage.css';
 
-class CreateGame extends React.Component {
+class LandingPage extends React.Component {
   constructor(props: {} | Readonly<{}>) {
     super(props);
   }
   render() {
     return <div className="CreateGame-header">
+      <h1>hello world</h1>
     <header>
     <form action="/create" method="post">
       <input className="create-button" type="submit" value="Create game" />
@@ -16,4 +17,4 @@ class CreateGame extends React.Component {
   }
 };
 
-export default CreateGame;
+export default LandingPage;
