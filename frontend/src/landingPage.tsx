@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './CSS/index.css';
-import App from './Components/App';
+import './LandingPage.css';
+import CreateGame from './Components/CreateGame';
 import reportWebVitals from './reportWebVitals';
 
 const root = ReactDOM.createRoot(
@@ -13,12 +13,16 @@ function poll() {
     // my logic.
 
     setTimeout(poll, 1000);
-  })
+  }).catch(error => {
+    console.error(error);
+    setTimeout(poll, 1000);
+  }
+  )
 }
 
 root.render(
   <React.StrictMode>
-    <App />
+    <CreateGame />
   </React.StrictMode>
 );
 
