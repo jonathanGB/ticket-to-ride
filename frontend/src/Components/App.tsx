@@ -7,7 +7,6 @@ class App extends React.Component {
     super(props);
   }
   render() {
-    console.log("hit app")
     return <div className="main-header">
       <Main />
     </div>

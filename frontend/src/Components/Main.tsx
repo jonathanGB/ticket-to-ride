@@ -5,7 +5,6 @@ import LandingPage from './LandingPage';
 import Game from './Game';
 
 const Main = () => {
-    console.log("hit app")
   return (
     <Routes> {/* The Switch decides which component to show based on the current URL.*/}
       <Route path='/' element={<LandingPage/>} />

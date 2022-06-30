@@ -7,7 +7,6 @@ class Game extends React.Component {
     super(props);
   }
   render() {
-    console.log("in game.tsx")
     return <div className="App-header">
       <h1>Hello game</h1>
       <header>
