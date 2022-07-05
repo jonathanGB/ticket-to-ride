@@ -1,109 +1,111 @@
 .LandingPage {
-    text-align: center;
-  }
-  
+  text-align: center;
+}
+
+.LandingPage-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
   .LandingPage-logo {
-    height: 40vmin;
-    pointer-events: none;
+    animation: LandingPage-logo-spin infinite 20s linear;
   }
-  
-  @media (prefers-reduced-motion: no-preference) {
-    .LandingPage-logo {
-      animation: LandingPage-logo-spin infinite 20s linear;
-    }
-  }
-  
-  .LandingPage-header {
-    background-color: #AEC8EB;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-evenly;
-    font-size: calc(10px + 2vmin);
-    overflow: hidden;
-    position: relative;
-  }
-  
-  .LandingPage-link {
-    color: #61dafb;
-  }
-  
-  @keyframes LandingPage-logo-spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
-  .create-button {
-    position: relative;
-    z-index: 1;
+}
+
+.LandingPage-header {
+  background-color: #AEC8EB;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  overflow: hidden;
+  position: relative;
+}
+
+.LandingPage-link {
+  color: #61dafb;
+}
+
+@keyframes LandingPage-logo-spin {
+  from {
+    transform: rotate(0deg);
   }
 
-  form {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
+  to {
+    transform: rotate(360deg);
   }
-  
-  .demo-content {
-    width:100%;  
-    height: 256px;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+}
+
+.create-button {
+  position: relative;
+  z-index: 1;
+}
+
+form {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.demo-content {
+  width: 100%;
+  height: 256px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.background {
+  position: absolute;
+  opacity: 0.25;
+  background: transparent url("../media/train.png") repeat-x scroll 0% 0%;
+  height: 256px;
+  width: 25076px;
+  animation: slide 10s linear infinite;
+  animation-direction: reverse;
+}
+
+.train {
+  width: 100%;
+  height: 256px;
+  overflow: hidden;
+}
+
+h1 {
+  font-size: 100pt;
+  margin: 0pt;
+  color: #FCFBF4;
+  -webkit-text-stroke: 2px #3A689B;
+}
+
+.create-button {
+  background-color: #3A689B;
+  background: linear-gradient(to top right, #2D537A 0%, #3A689B 50%, #2D537A 100%);
+  color: #FCFBF4;
+  width: 250px;
+  height: 80px;
+  font-size: 30px;
+  font-weight: bold;
+  border: none;
+  border-radius: 100px;
+  cursor: pointer;
+}
+
+.create-button:hover {
+  background: linear-gradient(to top right, #2D537A 15%, #3A689B 50%, #2D537A 85%);
+}
+
+@keyframes slide {
+  0% {
+    transform: translate3d(0, 0, 0);
   }
 
-  .background {
-    position:absolute;    
-    opacity: 0.25;
-    background:transparent url("../media/train.png") 
-               repeat-x scroll 0% 0%;
-    height: 256px;
-    width: 25076px;
-    animation: slide 30s linear infinite;
-    animation-direction: reverse;
+  100% {
+    transform: translate3d(-1000px, 0, 0);
   }
-  .train {
-    width: 100%;
-    height: 256px;
-    overflow: hidden;
-  }
-
-  h1 {
-    font-size: 100pt;
-    margin: 0pt;
-    color: white;
-    -webkit-text-stroke: 2px #3A689B;
-  }
-  .create-button{
-    margin: 10px;
-    background-color: #3A689B;
-    color: white;
-    width: 200px;
-    height: 50px;
-    font-size: 20px;
-    font-family: quicksane;
-    font-weight: bold;
-    border: none;
-  }
-  
-  .sliding-background {
-    background: url("../media/train.png") repeat-x;
-    height: 560px;
-    width: 5076px;
-    animation: slide 60s linear infinite;
-  }
-  
-  @keyframes slide{
-    0% {
-      transform: translate3d(0, 0, 0);
-    }
-    100% {
-      transform: translate3d(-1692px, 0, 0);
-    }
-  }
+}
