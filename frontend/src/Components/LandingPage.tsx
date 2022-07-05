@@ -6,13 +6,17 @@ class LandingPage extends React.Component {
     super(props);
   }
   render() {
-    return <div className="CreateGame-header">
-      <h1>hello world</h1>
-    <header>
-    <form action="/create" method="post">
-      <input className="create-button" type="submit" value="Create game" />
-    </form>
-    </header>
+    return <div className="LandingPage-header">
+      <h1>Ticket to Ride</h1>
+      <div className='train'>
+        <div className='background'>
+        </div>
+        <div className="demo-content">
+            <form className="buttonForm" action="/create" method="post">
+              <input className="create-button" type="submit" value="Create game" />
+            </form>
+          </div>
+      </div>
     </div>
   }
 };
