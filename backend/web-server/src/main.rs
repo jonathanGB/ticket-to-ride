@@ -11,7 +11,7 @@ use controller::Controller;
 use dashmap::DashMap;
 use rocket::serde::{json::Json, Serialize};
 use rocket::{
-    fs::NamedFile,
+    fs::{FileServer, NamedFile},
     http::{uri::Origin, CookieJar},
     response::Redirect,
     serde::uuid::Uuid,
@@ -37,11 +37,6 @@ fn index() -> Redirect {
 #[get("/robots.txt")]
 async fn robots() -> std::io::Result<NamedFile> {
     NamedFile::open(Path::new(BUILD_FILES_PATH).join("robots.txt")).await
-}
-
-#[get("/static/<file..>")]
-async fn serve_static_files(file: PathBuf) -> std::io::Result<NamedFile> {
-    NamedFile::open(Path::new(STATIC_FILES_PATH).join(file)).await
 }
 
 #[get("/game/<game_id>")]
@@ -109,11 +104,11 @@ fn rocket() -> _ {
                 root,
                 index,
                 robots,
-                serve_static_files,
                 create_game,
                 load_game,
                 get_game_state
             ],
         )
+        .mount("/static", FileServer::from(STATIC_FILES_PATH))
         .manage(h)
 }
