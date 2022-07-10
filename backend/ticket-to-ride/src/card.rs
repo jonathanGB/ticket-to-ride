@@ -24,14 +24,24 @@ const NUM_DRAWN_INITIAL_TRAIN_CARDS: usize = 4;
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum TrainColor {
+    /// Also known as the *Hopper train*.
     Black,
+    /// Also known as the *Tanker train*.
     Blue,
+    /// Also known as the *Caboose train*.
     Green,
+    /// Also known as the *Freight train*.
     Orange,
+    /// Also known as the *Box train*.
     Pink,
+    /// Also known as the *Coal train*.
     Red,
+    /// Also known as the *Passenger train*.
     White,
+    /// Also known as the *Locomotive*.
+    /// This is a special train that matches with any color.
     Wild,
+    /// Also known as the *Reefer train*.
     Yellow,
 }
 
