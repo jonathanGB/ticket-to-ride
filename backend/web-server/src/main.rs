@@ -7,7 +7,7 @@ mod authenticator;
 mod controller;
 mod model;
 
-use controller::Controller;
+use controller::{Controller, GameState};
 use dashmap::DashMap;
 use rocket::serde::{json::Json, Serialize};
 use rocket::{
@@ -17,15 +17,18 @@ use rocket::{
     serde::uuid::Uuid,
     State,
 };
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::path::Path;
 
 const BUILD_FILES_PATH: &str = "../../frontend/build";
 const STATIC_FILES_PATH: &str = "../../frontend/build/static";
 
+#[inline]
+fn redirect_to_root() -> Redirect {
+    Redirect::to(uri!(root()))
+}
+
 #[get("/")]
-async fn root(state: &State<DashMap<Uuid, u8>>) -> std::io::Result<NamedFile> {
+async fn root() -> std::io::Result<NamedFile> {
     NamedFile::open(Path::new(BUILD_FILES_PATH).join("index.html")).await
 }
 
@@ -39,39 +42,39 @@ async fn robots() -> std::io::Result<NamedFile> {
     NamedFile::open(Path::new(BUILD_FILES_PATH).join("robots.txt")).await
 }
 
+#[derive(Responder)]
+enum LoadGameError {
+    NoFile(std::io::Error),
+    NoGame(Redirect),
+    Unauthorized(Redirect),
+}
+
 #[get("/game/<game_id>")]
-fn load_game(
+async fn load_game(
     game_id: Uuid,
-    cookies: &CookieJar,
-    origin: &Origin,
-    state: &State<DashMap<Uuid, u8>>,
-) -> String {
-    let mut h = HashMap::<Uuid, u8>::new();
-    h.insert(game_id, 10);
+    cookies: &CookieJar<'_>,
+    origin: &Origin<'_>,
+    state: &State<DashMap<Uuid, Vec<usize>>>,
+) -> Result<NamedFile, LoadGameError> {
+    match state.get_mut(&game_id) {
+        Some(game_id_and_state) => {
+            if !Controller::new(game_id_and_state).load_game(cookies, origin) {
+                return Err(LoadGameError::Unauthorized(redirect_to_root()));
+            }
 
-    let start = Instant::now();
-    let val = state.get(&game_id);
-
-    println!("Found {:?}:{:?} in {:?}", game_id, val, start.elapsed());
-
-    let start = Instant::now();
-    let val = h.get(&game_id);
-    println!(
-        "Found (in hashmap) {:?}:{:?} in {:?}",
-        game_id,
-        val,
-        start.elapsed()
-    );
-
-    Controller::new(game_id).load_game(cookies, origin)
+            match NamedFile::open(Path::new(BUILD_FILES_PATH).join("index.html")).await {
+                Ok(file) => Ok(file),
+                Err(e) => Err(LoadGameError::NoFile(e)),
+            }
+        }
+        None => Err(LoadGameError::NoGame(redirect_to_root())),
+    }
 }
 
 #[post("/create")]
-fn create_game(state: &State<DashMap<Uuid, u8>>) -> Redirect {
-    let game_id = Controller::create_game();
-    let start = Instant::now();
-    state.insert(game_id, 9);
-    println!("Duration: {:?}", start.elapsed());
+fn create_game(state: &State<DashMap<Uuid, Vec<usize>>>) -> Redirect {
+    let game_id = Controller::create_game(state);
+
     Redirect::to(uri!(load_game(game_id)))
 }
 
@@ -96,18 +99,11 @@ fn get_game_state(game_id: Uuid, cookies: &CookieJar) -> Json<Foo> {
 
 #[launch]
 fn rocket() -> _ {
-    let h = DashMap::<Uuid, u8>::new();
+    let h = DashMap::<Uuid, GameState>::new();
     rocket::build()
         .mount(
             "/",
-            routes![
-                root,
-                index,
-                robots,
-                create_game,
-                load_game,
-                get_game_state
-            ],
+            routes![root, index, robots, create_game, load_game, get_game_state],
         )
         .mount("/static", FileServer::from(STATIC_FILES_PATH))
         .manage(h)
