@@ -1,19 +1,20 @@
-use crate::city::City;
-use crate::game_phase::GamePhase;
-use crate::train_color::TrainColor;
+use crate::{card::CardDealer, game_phase::GamePhase, map::Map, player::Player};
 
-pub struct Route {
-  start: City,
-  end: City,
-  color: Option<TrainColor>,
-  length: u8,
+use smallvec::SmallVec;
+const MAX_PLAYERS: usize = 5;
+
+pub struct Manager {
+    phase: GamePhase,
+    turn: u32,
+    map: Map,
+    card_dealer: CardDealer,
+    players: SmallVec<[Player; MAX_PLAYERS]>,
 }
 
-pub enum DestinationCard {}
-
-pub struct GameState {
-  phase: GamePhase,
-  turn: u32,
+impl Manager {
+    pub fn get_state(&self, player_id: usize) {
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]

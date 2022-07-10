@@ -68,6 +68,9 @@ pub enum City {
     Winnipeg = 36,
 }
 
+/// Top-level representation of a connection between two cities.
+pub type CityToCity = (City, City);
+
 #[cfg(test)]
 mod tests {
     use super::*;

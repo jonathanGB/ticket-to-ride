@@ -1,6 +1,6 @@
-use crate::city::City;
-use crate::train_color::TrainColor;
-use crate::train_color::TrainColor::*;
+use crate::card::TrainColor;
+use crate::card::TrainColor::*;
+use crate::city::{City, CityToCity};
 
 use array_init::array_init;
 use smallvec::SmallVec;
@@ -21,9 +21,6 @@ const NUM_CITIES: usize = City::Winnipeg as usize;
 
 // Helena has the highest number of neighbors, which is 7 adjacent cities.
 const MAX_ROUTES_PER_CITY: usize = 7;
-
-/// Top-level representation of a connection between two cities.
-type CityToCity = (City, City);
 
 /// There can be multiple "parallel" routes between two cities.
 /// `Route` represents one of them.
@@ -505,7 +502,7 @@ impl Map {
     /// ```
     /// use ticket_to_ride::city::City;
     /// use ticket_to_ride::map::{ClaimedRoute, Map};
-    /// use ticket_to_ride::train_color::TrainColor;
+    /// use ticket_to_ride::card::TrainColor;
     ///
     /// let map = Map::new(2).unwrap();
     ///
@@ -656,7 +653,7 @@ impl Map {
     /// ```
     /// use ticket_to_ride::city::City;
     /// use ticket_to_ride::map::Map;
-    /// use ticket_to_ride::train_color::TrainColor;
+    /// use ticket_to_ride::card::TrainColor;
     ///
     /// let map = Map::new(2).unwrap();
     ///
@@ -720,21 +717,21 @@ impl Map {
         cities_to_visit.extend(
             self.all_parallel_routes
                 .range(Self::get_range_of_routes_starting_at_city(city))
-                .filter(|((_, end), parallel_routes)| {
+                .filter_map(|((_, end), parallel_routes)| {
                     if cities_visited[*end as usize - 1] {
-                        return false;
+                        return None;
                     }
 
-                    let route_claimed_by_player = parallel_routes
+                    if parallel_routes
                         .iter()
-                        .any(|route| route.claimer() == Some(player_id));
-                    if route_claimed_by_player {
+                        .any(|route| route.claimer() == Some(player_id))
+                    {
                         cities_visited[*end as usize - 1] = true;
+                        Some(end)
+                    } else {
+                        None
                     }
-
-                    route_claimed_by_player
-                })
-                .map(|((_, end), _)| end),
+                }),
         );
     }
 
