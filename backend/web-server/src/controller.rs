@@ -1,4 +1,4 @@
-use crate::authenticator::Authenticator;
+use crate::authenticator::{Authenticator, Identifier};
 use dashmap::{mapref::one::RefMut, DashMap};
 use rocket::http::{uri::Origin, CookieJar};
 use uuid::Uuid;
@@ -39,7 +39,8 @@ impl<'a> Controller<'a> {
     }
 
     pub fn load_game(&mut self, cookies: &CookieJar, origin: &Origin) -> bool {
-        if let Some(player_id) = Authenticator::validate_and_get_player_id(cookies) {
+        if let Some(player_id) = Authenticator::validate_and_get_player_id(cookies, self.game_id())
+        {
             println!(
                 "Loaded game with ID = {}, player_id is = {}",
                 self.game_id(),
@@ -57,7 +58,11 @@ impl<'a> Controller<'a> {
         let player_id = num_players;
         self.game_state_mut().push(player_id);
 
-        Authenticator::authenticate(cookies, &origin.path(), player_id);
+        Authenticator::authenticate(
+            cookies,
+            &origin.path(),
+            Identifier::new(self.game_id().clone(), player_id),
+        );
         println!(
             "Loaded game with ID = {}, now authenticated as {}.",
             self.game_id(),
