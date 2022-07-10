@@ -9,7 +9,7 @@ class LandingPage extends React.Component {
     return <div className="LandingPage-header">
       <h1>Ticket to Ride</h1>
 
-      <div className="demo-content">
+      <div className="button-wrapper">
         <form className="buttonForm" action="/create" method="post">
           <input className="create-button" type="submit" value="All aboard!" />
         </form>
