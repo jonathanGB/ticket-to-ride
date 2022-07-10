@@ -7,6 +7,7 @@ The steps below assume you have a recent version of `Rust` (specifically `cargo`
 1. Compile the front-end.
 ```bash
 $ cd frontend
+$ npm i
 $ npm run build
 ```
 
