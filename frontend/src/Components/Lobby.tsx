@@ -1,5 +1,6 @@
 import React from 'react';
-import '../CSS/App.css';
+import '../CSS/Lobby.css';
+import PlayerCustom from './PlayerCustom';
 
 class Lobby extends React.Component {
   constructor(props: {} | Readonly<{}>) {
@@ -7,7 +8,11 @@ class Lobby extends React.Component {
   }
   render() {
     return <div className="Lobby-header">
-      <h1>Hello game</h1>
+      <PlayerCustom />
+      <PlayerCustom />
+      <PlayerCustom />
+      <PlayerCustom />
+      <PlayerCustom />
     </div>
   }
 };

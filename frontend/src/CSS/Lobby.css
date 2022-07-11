@@ -1,0 +1,10 @@
+.Lobby-header {
+    background-color: #AEC8EB;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
