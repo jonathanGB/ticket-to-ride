@@ -1,13 +1,13 @@
 import React from 'react';
 import '../CSS/PlayerCustom.css';
 
-class PlayerCustom extends React.Component {
+class PlayerCustom extends React.Component<{[name: string]: string;}, {}> {
   constructor(props: {} | Readonly<{}>) {
     super(props);
   }
   render() {
     return <div className="PlayerCustom-header">
-      <h1>Hello game </h1>
+      <h3>{this.props.name} </h3>
     </div>
   }
 };

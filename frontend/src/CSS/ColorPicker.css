@@ -1,0 +1,44 @@
+.ColorPicker-header{
+    display: flex;
+    align-items: center;
+    flex-direction: row;
+}
+.color {
+    border-style: double; 
+    border-radius: 1rem;
+    width: 5vh;
+    height: 5vh;
+    margin: 1vh;
+}
+#red {
+    border-color: #B23A48;
+    background-color: #B23A48;
+}
+#orange {
+    border-color: #DB9039;
+    background-color: #DB9039;
+}
+#yellow {
+    border-color: #DBDA60;
+    background-color: #DBDA60;
+}
+#green {
+    border-color: #33C191;
+    background-color: #33C191;
+}
+#blue {
+    border-color: #28B7E5;
+    background-color: #28B7E5;
+}
+#pink {
+    border-color: #CF8298;
+    background-color: #CF8298;
+}
+#black {
+    border-color: #3E4756;
+    background-color: #3E4756;
+}
+#white {
+    border-color: #F0E1D1;
+    background-color: #F0E1D1;
+}

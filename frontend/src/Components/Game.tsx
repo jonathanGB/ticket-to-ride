@@ -5,17 +5,17 @@ import Lobby from './Lobby';
 class Game extends React.Component<{}, { [phase: string]: string }> {
   constructor(props: {} | Readonly<{}>) {
     super(props);
-    this.state = { phase: "" }
+    this.state = { phase: "in_lobby" }
   }
   render() {
-    let url = window.location + '/state';
-    fetch(url)
-    .then(res => res.json())
-    .then((out) => {
-      let result: string = out.phase;
-      this.setState({phase: result});
-    })
-    .catch(err => { throw err });
+    // let url = window.location + '/state';
+    // fetch(url)
+    // .then(res => res.json())
+    // .then((out) => {
+    //   let result: string = out.phase;
+    //   this.setState({phase: result});
+    // })
+    // .catch(err => { throw err });
     //lobby has a different view than the other stages
     if(this.state.phase == "in_lobby" ){
       return <div className="Game-header">
