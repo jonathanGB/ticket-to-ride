@@ -1,5 +1,3 @@
-//!
-
 use crate::city::{City, CityToCity};
 
 use array_init::array_init;
@@ -87,7 +85,7 @@ pub struct DestinationCard {
     /// The two cities that must be connected to fulfill the destination card.
     pub destination: CityToCity,
     /// How many points are granted once this card is fulfilled.
-    /// If not fulfilled, the same amount will be substracted.
+    /// If not fulfilled, the same amount will rather be substracted.
     pub points: u8,
 }
 
@@ -275,7 +273,7 @@ impl CardDealer {
 
     /// Draws from the top of the close train card deck, and returns the card.
     ///
-    /// If there are no more cards left in that deck, returns `None`.
+    /// If there are no more cards left in that deck, returns an `Err`.
     ///
     /// If the close deck is empty after the draw is done, it will re-shuffle the discarded deck of train cards and swap it.
     ///
@@ -286,19 +284,27 @@ impl CardDealer {
     /// let mut card_dealer = CardDealer::new();
     ///
     /// match card_dealer.draw_from_close_train_card_deck() {
-    ///     Some(train_card) => println!("Picked {:?} from the close deck.", train_card),
-    ///     None => println!("The close train card deck is empty."),
+    ///     Ok(train_card) => println!("Picked {:?} from the close deck.", train_card),
+    ///     Err(e) => println!("{}", e),
     /// }
     /// ```
-    pub fn draw_from_close_train_card_deck(&mut self) -> Option<TrainColor> {
-        let card_drawn = self.close_train_card_deck.pop();
+    pub fn draw_from_close_train_card_deck(&mut self) -> Result<TrainColor, String> {
+        match self.close_train_card_deck.pop() {
+            Some(card_drawn) => {
+                self.maybe_reshuffle_and_swap_discarded_deck();
 
-        self.maybe_reshuffle_and_swap_discarded_deck();
-
-        card_drawn
+                Ok(card_drawn)
+            }
+            None => Err(String::from(
+                "There is no cards left in the close train card deck",
+            )),
+        }
     }
 
     /// Draws a train card from the open deck, based on the given `card_index`.
+    ///
+    /// If the selected index has a wild card, this returns an error if `is_second_draw` is true;
+    /// that is, we prevent selecting a wild card on a player's second draw in a given turn.
     ///
     /// If it finds a card, the specified slot will be replaced with the top card of the close train card deck.
     /// Based on the replacement card, the open train card deck may need to be re-shuffled.
@@ -309,7 +315,7 @@ impl CardDealer {
     /// In both of these cases, it returns the selected card as well as a boolean indicating whether
     /// we had to re-shuffle the open train card deck upon replacing it.
     ///
-    /// If there are no cards at that index, or if the index is out of bounds, returns `None`.
+    /// If there are no cards at that index, or if the index is out of bounds, returns `Err`.
     /// Note that at most 5 train cards are openly displayed at a time.
     ///
     /// # Example
@@ -319,32 +325,38 @@ impl CardDealer {
     /// let mut card_dealer = CardDealer::new();
     /// let invalid_card_index = 6;
     /// let valid_card_index = 2;
+    /// let is_second_draw = false;
     ///
-    /// assert!(card_dealer.draw_from_open_train_card_deck(invalid_card_index).is_none());
+    /// assert!(card_dealer.draw_from_open_train_card_deck(invalid_card_index, is_second_draw).is_err());
     ///
-    /// match card_dealer.draw_from_open_train_card_deck(valid_card_index) {
-    ///     Some(train_card) => println!("Picked {:?} from the open deck.", train_card),
-    ///     None => println!("There are no open train cards at index {}.", valid_card_index),
+    /// match card_dealer.draw_from_open_train_card_deck(valid_card_index, is_second_draw) {
+    ///     Ok(train_card) => println!("Picked {:?} from the open deck.", train_card),
+    ///     Err(e) => println!("{}", e),
     /// }
     /// ```
     pub fn draw_from_open_train_card_deck(
         &mut self,
         card_index: usize,
-    ) -> Option<(TrainColor, bool)> {
-        if card_index >= self.open_train_card_deck.len() {
-            return None;
+        is_second_draw: bool,
+    ) -> Result<(TrainColor, bool), String> {
+        let card = self.peek_at_open_train_card(card_index)?;
+
+        if is_second_draw && card.is_wild() {
+            Err(String::from(
+                "Cannot draw a wild card after having already drawn a train card this turn",
+            ))
+        } else {
+            self.open_train_card_deck[card_index] = self.draw_from_close_train_card_deck().ok();
+
+            Ok((card, self.maybe_reshuffle_open_train_card_deck()))
         }
-
-        let color = self.open_train_card_deck[card_index]?;
-        self.open_train_card_deck[card_index] = self.draw_from_close_train_card_deck();
-
-        Some((color, self.maybe_reshuffle_open_train_card_deck()))
     }
 
-    /// Draws at most three destination cards from the top of the destination cards deck.
+    /// Draws three destination cards from the top of the destination cards deck.
     ///
     /// If there are less than three destination cards left in the deck, it will return what is left.
-    /// Otherwise, it returns three of them.
+    ///
+    /// However, if the destination card deck is empty, it returns an `Err`.
     ///
     /// # Example
     /// ```
@@ -353,11 +365,18 @@ impl CardDealer {
     /// let mut card_dealer = CardDealer::new();
     ///
     /// let drawn_destination_cards = card_dealer.draw_from_destination_card_deck();
-    /// assert!(drawn_destination_cards.len() <= 3);
+    /// assert!(drawn_destination_cards.is_ok());
+    /// assert!(drawn_destination_cards.unwrap().len() <= 3);
     /// ```
     pub fn draw_from_destination_card_deck(
         &mut self,
-    ) -> SmallVec<[DestinationCard; NUM_DRAWN_DESTINATION_CARDS]> {
+    ) -> Result<SmallVec<[DestinationCard; NUM_DRAWN_DESTINATION_CARDS]>, String> {
+        if self.destination_card_deck.is_empty() {
+            return Err(String::from(
+                "Cannot draw from the destination card deck, as it is empty",
+            ));
+        }
+
         let mut drawn_destination_cards = SmallVec::new();
 
         for _ in 0..NUM_DRAWN_DESTINATION_CARDS {
@@ -367,7 +386,7 @@ impl CardDealer {
             }
         }
 
-        drawn_destination_cards
+        Ok(drawn_destination_cards)
     }
 
     /// The first draw of the game, during the [`crate::game_phase::GamePhase::Starting`] phase, returns four train cards
@@ -391,7 +410,10 @@ impl CardDealer {
         // considering the number of cards we start with, and the maximum number of players.
         (
             array_init(|_| self.draw_from_close_train_card_deck().unwrap()),
-            self.draw_from_destination_card_deck().into_inner().unwrap(),
+            self.draw_from_destination_card_deck()
+                .unwrap()
+                .into_inner()
+                .unwrap(),
         )
     }
 
@@ -451,6 +473,40 @@ impl CardDealer {
             &mut self.close_train_card_deck,
             &mut &mut self.discarded_train_card_deck,
         );
+    }
+
+    #[inline]
+    fn peek_at_open_train_card(&self, card_index: usize) -> Result<TrainColor, String> {
+        if card_index >= self.open_train_card_deck.len() {
+            return Err(format!(
+                "Card looked up at index {} is out of bounds (size {})",
+                card_index,
+                self.open_train_card_deck.len()
+            ));
+        }
+
+        match self.open_train_card_deck[card_index] {
+            Some(card) => Ok(card),
+            None => Err(format!("No cards found at index {}", card_index)),
+        }
+    }
+
+    /// Predicate that determines whether should be allowed to draw a train card again this turn.
+    ///
+    /// This is separate to the rule of not being allowed to draw a train card after having already
+    /// drawn an open wild card. This helper ensures that if a player drew a card from the close deck,
+    /// or a non-wild card from the open deck, that there are still cards the player could draw on that
+    /// same turn.
+    ///
+    /// Specifically, if there are no cards left in any deck, or if the only cards left are wild cards in
+    /// the open deck, then the player cannot draw again, thus we will terminate their turn earlier.
+    #[inline]
+    pub fn can_player_draw_again_this_turn(&self) -> bool {
+        !self.close_train_card_deck.is_empty()
+            || self
+                .open_train_card_deck
+                .iter()
+                .any(|card| card.is_some() && card.unwrap().is_not_wild())
     }
 }
 
@@ -662,28 +718,31 @@ mod tests {
     fn card_dealer_draw_from_close_deck() {
         let mut card_dealer = CardDealer::new();
         let expected_card = card_dealer.close_train_card_deck.last().cloned();
-        assert_eq!(card_dealer.draw_from_close_train_card_deck(), expected_card);
+        assert_eq!(
+            card_dealer.draw_from_close_train_card_deck().ok(),
+            expected_card
+        );
 
         card_dealer.close_train_card_deck = vec![TrainColor::Blue];
         card_dealer.discarded_train_card_deck = vec![TrainColor::Red];
 
         assert_eq!(
             card_dealer.draw_from_close_train_card_deck(),
-            Some(TrainColor::Blue)
+            Ok(TrainColor::Blue)
         );
         assert!(card_dealer.discarded_train_card_deck.is_empty());
         assert_eq!(
             card_dealer.draw_from_close_train_card_deck(),
-            Some(TrainColor::Red)
+            Ok(TrainColor::Red)
         );
-        assert!(card_dealer.draw_from_close_train_card_deck().is_none());
+        assert!(card_dealer.draw_from_close_train_card_deck().is_err());
     }
 
     #[test]
-    fn car_dealer_draw_from_open_deck_none() {
+    fn car_dealer_draw_from_open_deck_err() {
         let mut card_dealer = CardDealer::new();
         card_dealer.open_train_card_deck = [
-            Some(TrainColor::Wild),
+            Some(TrainColor::Blue),
             None,
             Some(TrainColor::Black),
             Some(TrainColor::Wild),
@@ -692,11 +751,35 @@ mod tests {
         .into();
 
         assert!(card_dealer
-            .draw_from_open_train_card_deck(/*card_index=*/ 1)
-            .is_none());
+            .draw_from_open_train_card_deck(/*card_index=*/ 1, /*is_second_draw= */ false)
+            .is_err());
         assert!(card_dealer
-            .draw_from_open_train_card_deck(/*card_index=*/ 6)
-            .is_none());
+            .draw_from_open_train_card_deck(/*card_index=*/ 6, /*is_second_draw= */ false)
+            .is_err());
+    }
+
+    #[test]
+    fn car_dealer_draw_from_open_deck_wild() {
+        let mut card_dealer = CardDealer::new();
+        card_dealer.open_train_card_deck = [
+            Some(TrainColor::Blue),
+            None,
+            Some(TrainColor::Black),
+            Some(TrainColor::Wild),
+            Some(TrainColor::Wild),
+        ]
+        .into();
+
+        assert_eq!(
+            card_dealer
+                .draw_from_open_train_card_deck(/*card_index=*/ 3, /*is_second_draw= */ false),
+            Ok((TrainColor::Wild, false))
+        );
+
+        // 4th index is also a wild card, which returns an error if `is_second_draw` is enabled.
+        assert!(card_dealer
+            .draw_from_open_train_card_deck(/*card_index=*/ 4, /*is_second_draw= */ true)
+            .is_err());
     }
 
     #[test]
@@ -713,8 +796,9 @@ mod tests {
         card_dealer.close_train_card_deck.clear();
 
         assert_eq!(
-            card_dealer.draw_from_open_train_card_deck(/*card_index=*/ 0),
-            Some((TrainColor::White, false))
+            card_dealer
+                .draw_from_open_train_card_deck(/*card_index=*/ 0, /*is_second_draw */ false),
+            Ok((TrainColor::White, false))
         );
         assert!(card_dealer.open_train_card_deck[0].is_none());
     }
@@ -740,8 +824,9 @@ mod tests {
         ];
 
         assert_eq!(
-            card_dealer.draw_from_open_train_card_deck(/*card_index=*/ 0),
-            Some((TrainColor::White, true))
+            card_dealer
+                .draw_from_open_train_card_deck(/*card_index=*/ 0, /*is_second_draw= */ false),
+            Ok((TrainColor::White, true))
         );
         assert_eq!(card_dealer.open_train_card_deck.len(), NUM_OPEN_TRAIN_CARDS);
 
@@ -768,6 +853,7 @@ mod tests {
         let mut card_dealer = CardDealer::new();
         let discard_cards = vec![TrainColor::Yellow];
         card_dealer.close_train_card_deck.clear();
+        card_dealer.discarded_train_card_deck.clear();
 
         card_dealer.discard_train_cards(discard_cards.clone());
         assert_eq!(card_dealer.close_train_card_deck, discard_cards);
@@ -788,7 +874,7 @@ mod tests {
 
         assert_eq!(
             card_dealer.draw_from_destination_card_deck(),
-            expected_destination_cards
+            Ok(expected_destination_cards)
         );
     }
 
@@ -806,12 +892,12 @@ mod tests {
 
         assert_eq!(
             card_dealer.draw_from_destination_card_deck(),
-            [
+            Ok([
                 only_destination_card,
                 discarded_destination_cards[0].clone(),
                 discarded_destination_cards[1].clone()
             ]
-            .into()
+            .into())
         );
     }
 
@@ -821,9 +907,11 @@ mod tests {
         let only_destination_card = destination_card! {City::Boston, City::Montreal, 5};
         card_dealer.destination_card_deck = VecDeque::from([only_destination_card.clone()]);
 
+        let mut expected_destination_cards: SmallVec<[DestinationCard; 3]> = SmallVec::new();
+        expected_destination_cards.push(only_destination_card);
         assert_eq!(
             card_dealer.draw_from_destination_card_deck(),
-            [only_destination_card].into()
+            Ok(expected_destination_cards)
         );
     }
 
@@ -832,7 +920,7 @@ mod tests {
         let mut card_dealer = CardDealer::new();
         card_dealer.destination_card_deck.clear();
 
-        assert!(card_dealer.draw_from_destination_card_deck().is_empty());
+        assert!(card_dealer.draw_from_destination_card_deck().is_err());
     }
 
     #[test]
