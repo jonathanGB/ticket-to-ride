@@ -80,8 +80,11 @@ macro_rules! parallel_routes {
 /// Holds the information about a route successfully claimed by a player.
 #[derive(Debug, PartialEq)]
 pub struct ClaimedRoute {
+    /// Which two adjacent cities are part of the claimed route.
     pub route: CityToCity,
+    /// There can be up to two routes between two cities: this index distinguishes them.
     pub parallel_route_index: usize,
+    /// How many cards must be used to claim that route.
     pub length: u8,
 }
 
@@ -841,6 +844,25 @@ impl Map {
         }
 
         longest_route_from_city
+    }
+
+    /// Calculates how many points a route is worth.
+    ///
+    /// The points depend more specifically on the length of that route.
+    ///
+    /// # Panic!
+    /// Assumes that a route can be at most of length 6!
+    #[inline]
+    pub fn calculate_points_for_claimed_route(length: u8) -> u8 {
+        match length {
+            1 => 1,
+            2 => 2,
+            3 => 4,
+            4 => 7,
+            5 => 10,
+            6 => 15,
+            _ => unreachable!(),
+        }
     }
 }
 
