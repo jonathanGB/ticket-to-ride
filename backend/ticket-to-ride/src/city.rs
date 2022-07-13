@@ -1,6 +1,7 @@
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use strum_macros::Display;
 
+/// All the different cities on the map.
 #[derive(
     Clone,
     Copy,
