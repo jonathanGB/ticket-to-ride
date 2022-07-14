@@ -1,8 +1,9 @@
 import React from 'react';
 import PlayerCustom from './PlayerCustom';
 import '../CSS/ColorPicker.css'
+import PlayerColor from '../PlayerColorEnum'
 
-class NameForm extends React.Component<{}, { [value: string]: string }> {
+class NameForm extends React.Component<{selfColor?: PlayerColor}, { [value: string]: string }> {
     constructor(props: {} | Readonly<{}>) {
         super(props);
         this.state = {value: 'Player1'};
@@ -25,7 +26,7 @@ class NameForm extends React.Component<{}, { [value: string]: string }> {
                 Enter Name:
                 <input type="text" value={this.state.value} onChange={this.handleChange} />
             </label>
-            <PlayerCustom name = {this.state.value}/>
+            <PlayerCustom name = {this.state.value} color = {this.props.selfColor}/>
         </div>
       );
     }
