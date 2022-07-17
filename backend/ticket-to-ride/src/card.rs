@@ -296,7 +296,7 @@ impl CardDealer {
                 Ok(card_drawn)
             }
             None => Err(String::from(
-                "There is no cards left in the close train card deck",
+                "There is no cards left in the close train card deck.",
             )),
         }
     }
@@ -343,7 +343,7 @@ impl CardDealer {
 
         if is_second_draw && card.is_wild() {
             Err(String::from(
-                "Cannot draw a wild card after having already drawn a train card this turn",
+                "Cannot draw a wild card after having already drawn a train card this turn.",
             ))
         } else {
             self.open_train_card_deck[card_index] = self.draw_from_close_train_card_deck().ok();
@@ -373,7 +373,7 @@ impl CardDealer {
     ) -> Result<SmallVec<[DestinationCard; NUM_DRAWN_DESTINATION_CARDS]>, String> {
         if self.destination_card_deck.is_empty() {
             return Err(String::from(
-                "Cannot draw from the destination card deck, as it is empty",
+                "Cannot draw from the destination card deck, as it is empty.",
             ));
         }
 
@@ -442,11 +442,12 @@ impl CardDealer {
     /// the discarded destination cards.
     /// # Example
     /// ```
+    /// use smallvec::smallvec;
     /// use ticket_to_ride::card::{CardDealer, DestinationCard};
     /// use ticket_to_ride::city::City;
     ///
     /// let mut card_dealer = CardDealer::new();
-    /// let destination_cards_to_discard = vec![
+    /// let destination_cards_to_discard = smallvec![
     ///     DestinationCard {
     ///         destination: (City::Chicago, City::SantaFe),
     ///         points: 9,
@@ -455,7 +456,10 @@ impl CardDealer {
     ///
     /// card_dealer.discard_destination_cards(destination_cards_to_discard);
     /// ```
-    pub fn discard_destination_cards(&mut self, destination_cards: Vec<DestinationCard>) {
+    pub fn discard_destination_cards(
+        &mut self,
+        destination_cards: SmallVec<[DestinationCard; NUM_DRAWN_DESTINATION_CARDS]>,
+    ) {
         for destination_card in destination_cards {
             self.destination_card_deck.push_front(destination_card);
         }
@@ -479,7 +483,7 @@ impl CardDealer {
     fn peek_at_open_train_card(&self, card_index: usize) -> Result<TrainColor, String> {
         if card_index >= self.open_train_card_deck.len() {
             return Err(format!(
-                "Card looked up at index {} is out of bounds (size {})",
+                "Card looked up at index {} is out of bounds (size {}).",
                 card_index,
                 self.open_train_card_deck.len()
             ));
@@ -487,7 +491,7 @@ impl CardDealer {
 
         match self.open_train_card_deck[card_index] {
             Some(card) => Ok(card),
-            None => Err(format!("No cards found at index {}", card_index)),
+            None => Err(format!("No cards found at index {}.", card_index)),
         }
     }
 
@@ -507,6 +511,50 @@ impl CardDealer {
                 .open_train_card_deck
                 .iter()
                 .any(|card| card.is_some() && card.unwrap().is_not_wild())
+    }
+
+    /// Mutable accessor to the open train card deck.
+    ///
+    /// Should only be used for testing!
+    pub fn get_mut_open_train_card_deck(
+        &mut self,
+    ) -> &mut SmallVec<[Option<TrainColor>; NUM_OPEN_TRAIN_CARDS]> {
+        &mut self.open_train_card_deck
+    }
+
+    /// Accessor to the close train card deck.
+    ///
+    /// Should only be used for testing!
+    pub fn get_close_train_card_deck(&self) -> &Vec<TrainColor> {
+        &self.close_train_card_deck
+    }
+
+    /// Mutable accessor to the close train card deck.
+    ///
+    /// Should only be used for testing!
+    pub fn get_mut_close_train_card_deck(&mut self) -> &mut Vec<TrainColor> {
+        &mut self.close_train_card_deck
+    }
+
+    /// Accessor to the discarded train card deck.
+    ///
+    /// Should only be used for testing!
+    pub fn get_discarded_train_card_deck(&self) -> &Vec<TrainColor> {
+        &self.discarded_train_card_deck
+    }
+
+    /// Accessor to the destination card deck.
+    ///
+    /// Should only be used for testing!
+    pub fn get_destination_card_deck(&self) -> &VecDeque<DestinationCard> {
+        &self.destination_card_deck
+    }
+
+    /// Mutable accessor to the destination card deck.
+    ///
+    /// Should only be used for testing!
+    pub fn get_mut_destination_card_deck(&mut self) -> &mut VecDeque<DestinationCard> {
+        &mut self.destination_card_deck
     }
 }
 
@@ -884,11 +932,11 @@ mod tests {
         let only_destination_card = destination_card! {City::Boston, City::Montreal, 5};
         card_dealer.destination_card_deck = VecDeque::from([only_destination_card.clone()]);
 
-        let discarded_destination_cards = [
+        let discarded_destination_cards = smallvec![
             destination_card! {City::Duluth, City::Vancouver, 15},
             destination_card! {City::LosAngeles, City::ElPaso, 6},
         ];
-        card_dealer.discard_destination_cards(discarded_destination_cards.clone().into());
+        card_dealer.discard_destination_cards(discarded_destination_cards.clone());
 
         assert_eq!(
             card_dealer.draw_from_destination_card_deck(),
@@ -948,6 +996,71 @@ mod tests {
         assert_eq!(
             card_dealer.initial_draw(),
             (train_cards_drawn, destination_cards_drawn)
+        );
+    }
+
+    // Accessor tests.
+
+    #[test]
+    fn card_dealer_open_train_card_mut_accessor() {
+        let mut card_dealer = CardDealer::new();
+        let mut open_train_card_deck = card_dealer.open_train_card_deck.clone();
+
+        assert_eq!(
+            card_dealer.get_mut_open_train_card_deck(),
+            &mut open_train_card_deck
+        );
+    }
+
+    #[test]
+    fn card_dealer_close_train_card_accessor() {
+        let card_dealer = CardDealer::new();
+
+        assert_eq!(
+            card_dealer.get_close_train_card_deck(),
+            &card_dealer.close_train_card_deck
+        );
+    }
+
+    #[test]
+    fn card_dealer_close_train_card_mut_accessor() {
+        let mut card_dealer = CardDealer::new();
+        let mut close_train_card_deck = card_dealer.close_train_card_deck.clone();
+
+        assert_eq!(
+            card_dealer.get_mut_close_train_card_deck(),
+            &mut close_train_card_deck
+        );
+    }
+
+    #[test]
+    fn card_dealer_discarded_train_card_accessor() {
+        let card_dealer = CardDealer::new();
+
+        assert_eq!(
+            card_dealer.get_discarded_train_card_deck(),
+            &card_dealer.discarded_train_card_deck
+        );
+    }
+
+    #[test]
+    fn card_dealer_destination_card_accessor() {
+        let card_dealer = CardDealer::new();
+
+        assert_eq!(
+            card_dealer.get_destination_card_deck(),
+            &card_dealer.destination_card_deck
+        );
+    }
+
+    #[test]
+    fn card_dealer_destination_card_mut_accessor() {
+        let mut card_dealer = CardDealer::new();
+        let mut destination_card_deck = card_dealer.destination_card_deck.clone();
+
+        assert_eq!(
+            card_dealer.get_mut_destination_card_deck(),
+            &mut destination_card_deck
         );
     }
 
