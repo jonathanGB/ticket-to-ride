@@ -20,7 +20,7 @@ pub mod card;
 /// as [`city::CityToCity`] tuples.
 pub mod city;
 pub mod game_phase;
-pub mod game_state;
+pub mod manager;
 
 /// Module that mostly pertains to the [`map::Map`], its routes -- and who claims them.
 pub mod map;
