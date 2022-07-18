@@ -25,6 +25,6 @@ pub mod manager;
 /// Module that mostly pertains to the [`map::Map`], its routes -- and who claims them.
 pub mod map;
 
-/// Modules that defines what a [`player::Player`] is, what actions they can take, and whether
-/// they are allowed to fulfill them.
+/// Modules that defines what a [`player::Player`] is, what state it holds,
+/// what actions they can take, and whether they are allowed to fulfill them.
 pub mod player;
