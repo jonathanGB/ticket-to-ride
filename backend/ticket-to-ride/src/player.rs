@@ -4,9 +4,7 @@ use crate::map::{ClaimedRoute, Map};
 
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
-use std::rc::Rc;
 use strum::IntoEnumIterator;
 
 // Every player starts the game with 45 cards.
@@ -184,11 +182,6 @@ impl PrivatePlayerState {
 pub struct Player {
     public: PublicPlayerState,
     private: PrivatePlayerState,
-
-    /// Shared reference by all players to the map.
-    map: Option<Rc<Map>>,
-    /// Shared reference by all players to the card dealer.
-    card_dealer: Option<Rc<RefCell<CardDealer>>>,
 }
 
 impl Player {
@@ -197,26 +190,15 @@ impl Player {
         Self {
             public: PublicPlayerState::new(id, color),
             private: PrivatePlayerState::new(),
-
-            map: None,
-            card_dealer: None,
         }
     }
 
-    /// Initializes the player with information to start the game.
+    /// Initializes the player with the cards to start the game.
     ///
     /// The [`crate::manager::Manager`] must call this once the game has started, meaning we are out of the
     /// [`crate::game_phase::GamePhase::InLobby`] phase.
-    ///
-    /// Takes care of the special initial draw of train and destination cards, and initializes shared references
-    /// to the [`Map`] and the [`CardDealer`].
-    pub fn initialize_when_game_starts(
-        &mut self,
-        map: Rc<Map>,
-        card_dealer: Rc<RefCell<CardDealer>>,
-    ) {
-        let (initial_train_cards, initial_destination_cards) =
-            card_dealer.borrow_mut().initial_draw();
+    pub fn initialize_when_game_starts(&mut self, card_dealer: &mut CardDealer) {
+        let (initial_train_cards, initial_destination_cards) = card_dealer.initial_draw();
 
         self.public.num_train_cards += initial_train_cards.len() as u8;
         for train_card in initial_train_cards {
@@ -229,9 +211,6 @@ impl Player {
         self.private
             .pending_destination_cards
             .extend(initial_destination_cards);
-
-        self.map = Some(map);
-        self.card_dealer = Some(card_dealer);
     }
 
     /// Change the player's name.
@@ -282,27 +261,6 @@ impl Player {
     #[inline]
     pub fn set_done_playing(&mut self) {
         self.public.is_done_playing = true;
-    }
-
-    // Safe to call as long as the game has started.
-    // Otherwise, it will panic.
-    #[inline]
-    fn get_map(&self) -> &Map {
-        self.map.as_ref().unwrap()
-    }
-
-    // Safe to call as long as the game has started.
-    // Otherwise, it will panic.
-    #[inline]
-    fn get_card_dealer(&self) -> Ref<CardDealer> {
-        self.card_dealer.as_ref().unwrap().borrow()
-    }
-
-    // Safe to call as long as the game has started.
-    // Otherwise, it will panic.
-    #[inline]
-    fn get_mut_card_dealer(&self) -> RefMut<CardDealer> {
-        self.card_dealer.as_ref().unwrap().borrow_mut()
     }
 
     /// Clears the turn's actions, and overrides it with the given action and description.
@@ -370,6 +328,8 @@ impl Player {
         parallel_route_index: usize,
         cards: Vec<TrainColor>,
         turn: usize,
+        map: &mut Map,
+        card_dealer: &mut CardDealer,
     ) -> ActionResult {
         if let Some(last_turn) = self.public.turn_actions.turn {
             if last_turn == turn {
@@ -428,12 +388,8 @@ impl Player {
         }
 
         // Try to claim the route.
-        let claimed_route = self.get_map().claim_route_for_player(
-            route,
-            parallel_route_index,
-            &cards,
-            self.public.id,
-        )?;
+        let claimed_route =
+            map.claim_route_for_player(route, parallel_route_index, &cards, self.public.id)?;
 
         // At this point, we have successfully claimed the route. Some player bookkeeping is in order.
 
@@ -464,7 +420,7 @@ impl Player {
         self.public.points += Map::calculate_points_for_claimed_route(claimed_route.length);
         self.public.cars -= claimed_route.length;
         self.public.claimed_routes.push(claimed_route);
-        self.get_mut_card_dealer().discard_train_cards(cards);
+        card_dealer.discard_train_cards(cards);
 
         // Turn is over.
         Ok(true)
@@ -492,7 +448,12 @@ impl Player {
     /// Otherwise, draws the given card, stores it, and returns `Ok` encapsulating whether the turn is over.
     /// The turn is over (`true`) if this was their second draw this turn,
     /// or if there is no valid cards left to draw anyway.
-    pub fn draw_open_train_card(&mut self, card_index: usize, turn: usize) -> ActionResult {
+    pub fn draw_open_train_card(
+        &mut self,
+        card_index: usize,
+        turn: usize,
+        card_dealer: &mut CardDealer,
+    ) -> ActionResult {
         let turn_second_draw = match self.public.turn_actions.turn {
             Some(last_turn) if last_turn != turn => false,
             Some(_) => {
@@ -505,9 +466,8 @@ impl Player {
             None => false,
         };
 
-        let (card, reshuffled) = self
-            .get_mut_card_dealer()
-            .draw_from_open_train_card_deck(card_index, turn_second_draw)?;
+        let (card, reshuffled) =
+            card_dealer.draw_from_open_train_card_deck(card_index, turn_second_draw)?;
 
         // Drew card successfully. Store that card, and decide whether the player's turn is over.
 
@@ -541,7 +501,7 @@ impl Player {
             );
 
             // Turn is over if there is no valid cards to be drawn this turn.
-            Ok(!self.get_card_dealer().can_player_draw_again_this_turn())
+            Ok(!card_dealer.can_player_draw_again_this_turn())
         }
     }
 
@@ -561,7 +521,11 @@ impl Player {
     /// Otherwise, draws the top card, stores it, and returns `Ok` encapsulating whether the turn is over.
     /// The turn is over (`true`) if this was their second draw this turn,
     /// or if there is no valid cards left to draw anyway.
-    pub fn draw_close_train_card(&mut self, turn: usize) -> ActionResult {
+    pub fn draw_close_train_card(
+        &mut self,
+        turn: usize,
+        card_dealer: &mut CardDealer,
+    ) -> ActionResult {
         let turn_second_draw = match self.public.turn_actions.turn {
             Some(last_turn) if last_turn != turn => false,
             Some(_) => {
@@ -574,9 +538,7 @@ impl Player {
             None => false,
         };
 
-        let card = self
-            .get_mut_card_dealer()
-            .draw_from_close_train_card_deck()?;
+        let card = card_dealer.draw_from_close_train_card_deck()?;
 
         self.private
             .train_cards
@@ -594,7 +556,7 @@ impl Player {
             self.replace_turn_action(turn, PlayerAction::DrewCloseTrainCard, description);
 
             // Turn is over if there is no valid cards to be drawn this turn.
-            Ok(!self.get_card_dealer().can_player_draw_again_this_turn())
+            Ok(!card_dealer.can_player_draw_again_this_turn())
         }
     }
 
@@ -621,7 +583,11 @@ impl Player {
     ///
     /// Note that less than tree destination cards may be returned, if there were
     /// less than three left in the deck.
-    pub fn draw_destination_cards(&mut self, turn: usize) -> ActionResult {
+    pub fn draw_destination_cards(
+        &mut self,
+        turn: usize,
+        card_dealer: &mut CardDealer,
+    ) -> ActionResult {
         if let Some(last_turn) = self.public.turn_actions.turn {
             if last_turn == turn {
                 return Err(format!(
@@ -630,9 +596,7 @@ impl Player {
             }
         }
 
-        let mut destination_cards = self
-            .get_mut_card_dealer()
-            .draw_from_destination_card_deck()?;
+        let mut destination_cards = card_dealer.draw_from_destination_card_deck()?;
 
         std::mem::swap(
             &mut self.private.pending_destination_cards,
@@ -681,6 +645,7 @@ impl Player {
         &mut self,
         destination_cards_decisions: SmallVec<[bool; 3]>,
         turn: Option<usize>,
+        card_dealer: &mut CardDealer,
     ) -> ActionResult {
         if destination_cards_decisions.len() != self.private.pending_destination_cards.len() {
             return Err(format!(
@@ -741,8 +706,7 @@ impl Player {
             }
         }
 
-        self.get_mut_card_dealer()
-            .discard_destination_cards(discarded_destination_cards);
+        card_dealer.discard_destination_cards(discarded_destination_cards);
 
         // Selecting destination cards always ends the turn.
         Ok(true)
@@ -825,9 +789,6 @@ mod tests {
 
         assert!(player.private.pending_destination_cards.is_empty());
         assert!(player.private.selected_destination_cards.is_empty());
-
-        assert!(player.map.is_none());
-        assert!(player.card_dealer.is_none());
     }
 
     #[test]
@@ -857,17 +818,14 @@ mod tests {
 
     #[test]
     fn player_initialize_when_game_starts() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
+        let mut card_dealer = CardDealer::new();
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
 
         let sum_train_cards: u8 = player.private.train_cards.values().sum();
         assert_eq!(sum_train_cards, 4);
         assert_eq!(player.public.num_train_cards, 4);
         assert_eq!(player.private.pending_destination_cards.len(), 3);
-        assert!(player.map.is_some());
-        assert!(player.card_dealer.is_some());
         assert!(player.private.selected_destination_cards.is_empty());
     }
 
@@ -879,11 +837,13 @@ mod tests {
         let route_index = 0;
         let cards = vec![TrainColor::Black, TrainColor::Black, TrainColor::Black];
         let turn = 5;
+        let mut map = Map::new(2).unwrap();
+        let mut card_dealer = CardDealer::new();
 
         player.public.turn_actions.turn = Some(turn);
 
         assert_eq!(
-            player.claim_route(route, route_index, cards, turn),
+            player.claim_route(route, route_index, cards, turn, &mut map, &mut card_dealer),
             Err(String::from(
                 "Cannot claim route if you have drawn a train card or destination cards this turn."
             ))
@@ -898,11 +858,13 @@ mod tests {
         let route_index = 0;
         let cards = vec![TrainColor::Black, TrainColor::Black, TrainColor::Black];
         let turn = 5;
+        let mut map = Map::new(2).unwrap();
+        let mut card_dealer = CardDealer::new();
 
         player.public.cars = 2;
 
         assert_eq!(
-            player.claim_route(route, route_index, cards, turn),
+            player.claim_route(route, route_index, cards, turn, &mut map, &mut card_dealer),
             Err(String::from(
                 "Cannot claim route from Chicago to Pittsburgh with 3 cards, whilst having only 2 cars left.",
             ))
@@ -918,11 +880,13 @@ mod tests {
         let route_index = 0;
         let cards = vec![TrainColor::Wild, TrainColor::Wild, TrainColor::Black];
         let turn = 5;
+        let mut map = Map::new(2).unwrap();
+        let mut card_dealer = CardDealer::new();
 
         player.private.train_cards.insert(TrainColor::Wild, 1);
 
         assert_eq!(
-            player.claim_route(route, route_index, cards, turn),
+            player.claim_route(route, route_index, cards, turn, &mut map, &mut card_dealer),
             Err(String::from(
                 "Cannot claim a route using 2 wild cards, whilst having only 1 left.",
             ))
@@ -938,12 +902,14 @@ mod tests {
         let route_index = 0;
         let cards = vec![TrainColor::Wild, TrainColor::Black, TrainColor::Black];
         let turn = 5;
+        let mut map = Map::new(2).unwrap();
+        let mut card_dealer = CardDealer::new();
 
         player.private.train_cards.insert(TrainColor::Wild, 1);
         player.private.train_cards.insert(TrainColor::Black, 1);
 
         assert_eq!(
-            player.claim_route(route, route_index, cards, turn),
+            player.claim_route(route, route_index, cards, turn, &mut map, &mut card_dealer),
             Err(String::from(
                 "Cannot claim a route using 2 black cards, whilst having only 1 left.",
             ))
@@ -953,20 +919,19 @@ mod tests {
 
     #[test]
     fn player_claim_route_map_returns_err() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
-
         let route = (City::Chicago, City::Pittsburgh);
         let route_index = 0;
         let cards = vec![TrainColor::Wild, TrainColor::Black, TrainColor::Black];
         let turn = 5;
+        let mut map = Map::new(2).unwrap();
+        let mut card_dealer = CardDealer::new();
 
         assert!(map
             .claim_route_for_player(route, route_index, &cards, PLAYER_ID)
             .is_ok());
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
         assert_eq!(player.public.num_train_cards, 4);
 
         player.private.train_cards.insert(TrainColor::Wild, 1);
@@ -974,7 +939,7 @@ mod tests {
 
         let route_index = 1;
         assert_eq!(
-            player.claim_route(route, route_index, cards, turn),
+            player.claim_route(route, route_index, cards, turn, &mut map, &mut card_dealer),
             Err(String::from(
                 "Cannot claim more than one route between Chicago and Pittsburgh.",
             ))
@@ -985,23 +950,29 @@ mod tests {
 
     #[test]
     fn player_claim_route() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
-
         let route = (City::Chicago, City::Pittsburgh);
         let parallel_route_index = 0;
         let cards = vec![TrainColor::Wild, TrainColor::Black, TrainColor::Black];
         let turn = 5;
+        let mut map = Map::new(2).unwrap();
+        let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
         assert_eq!(player.public.num_train_cards, 4);
 
         player.private.train_cards.insert(TrainColor::Wild, 1);
         player.private.train_cards.insert(TrainColor::Black, 3);
 
         assert_eq!(
-            player.claim_route(route, parallel_route_index, cards.clone(), turn),
+            player.claim_route(
+                route,
+                parallel_route_index,
+                cards.clone(),
+                turn,
+                &mut map,
+                &mut card_dealer
+            ),
             Ok(true)
         );
 
@@ -1035,13 +1006,7 @@ mod tests {
             }]
         );
 
-        assert!(player.card_dealer.is_some());
-        let discarded_train_cards = player
-            .card_dealer
-            .unwrap()
-            .borrow()
-            .get_discarded_train_card_deck()
-            .clone();
+        let discarded_train_cards = card_dealer.get_discarded_train_card_deck();
         assert!(discarded_train_cards.len() >= 3);
         assert_eq!(
             discarded_train_cards.as_slice()[discarded_train_cards.len() - 3..],
@@ -1051,14 +1016,12 @@ mod tests {
 
     #[test]
     fn player_draw_open_train_card_drawn_destination_card_already() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
-
         let card_index = 0;
         let turn = 5;
+        let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = Some(turn);
         player
             .public
@@ -1067,7 +1030,7 @@ mod tests {
             .push(PlayerAction::DrewDestinationCards);
 
         assert_eq!(
-            player.draw_open_train_card(card_index, turn),
+            player.draw_open_train_card(card_index, turn, &mut card_dealer),
             Err(String::from(
                 "Cannot draw a train card after having already drawn destination cards this turn."
             ))
@@ -1076,17 +1039,14 @@ mod tests {
 
     #[test]
     fn player_draw_open_train_card_wild_card_second_draw() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let mut card_dealer = CardDealer::new();
-
         let card_index = 0;
         let turn = 5;
+        let mut card_dealer = CardDealer::new();
 
         card_dealer.get_mut_open_train_card_deck()[card_index] = Some(TrainColor::Wild);
-        let card_dealer = Rc::new(RefCell::new(card_dealer));
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = Some(turn);
         player
             .public
@@ -1095,7 +1055,7 @@ mod tests {
             .push(PlayerAction::DrewCloseTrainCard);
 
         assert_eq!(
-            player.draw_open_train_card(card_index, turn),
+            player.draw_open_train_card(card_index, turn, &mut card_dealer),
             Err(String::from(
                 "Cannot draw a wild card after having already drawn a train card this turn."
             ))
@@ -1104,18 +1064,15 @@ mod tests {
 
     #[test]
     fn player_draw_open_train_card_wild_card_first_draw() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let mut card_dealer = CardDealer::new();
-
         let card_index = 0;
         let turn = 5;
         let selected_card = TrainColor::Wild;
+        let mut card_dealer = CardDealer::new();
 
         card_dealer.get_mut_open_train_card_deck()[card_index] = Some(selected_card);
-        let card_dealer = Rc::new(RefCell::new(card_dealer));
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
         let inventory_wild_cards = player
             .private
             .train_cards
@@ -1124,7 +1081,10 @@ mod tests {
             .unwrap();
         let num_train_cards = player.public.num_train_cards;
 
-        assert_eq!(player.draw_open_train_card(card_index, turn), Ok(true));
+        assert_eq!(
+            player.draw_open_train_card(card_index, turn, &mut card_dealer),
+            Ok(true)
+        );
         assert_eq!(
             player.private.train_cards.get(&selected_card).cloned(),
             Some(inventory_wild_cards + 1)
@@ -1146,18 +1106,15 @@ mod tests {
 
     #[test]
     fn player_draw_open_train_card_non_wild_card_first_draw() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let mut card_dealer = CardDealer::new();
-
         let card_index = 0;
         let turn = 5;
         let selected_card = TrainColor::Red;
+        let mut card_dealer = CardDealer::new();
 
         card_dealer.get_mut_open_train_card_deck()[card_index] = Some(selected_card);
-        let card_dealer = Rc::new(RefCell::new(card_dealer));
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
         let inventory_wild_cards = player
             .private
             .train_cards
@@ -1166,7 +1123,10 @@ mod tests {
             .unwrap();
         let num_train_cards = player.public.num_train_cards;
 
-        assert_eq!(player.draw_open_train_card(card_index, turn), Ok(false));
+        assert_eq!(
+            player.draw_open_train_card(card_index, turn, &mut card_dealer),
+            Ok(false)
+        );
         assert_eq!(
             player.private.train_cards.get(&selected_card).cloned(),
             Some(inventory_wild_cards + 1)
@@ -1188,18 +1148,15 @@ mod tests {
 
     #[test]
     fn player_draw_open_train_card_non_wild_card_second_draw() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let mut card_dealer = CardDealer::new();
-
         let card_index = 0;
         let turn = 5;
         let selected_card = TrainColor::Red;
+        let mut card_dealer = CardDealer::new();
 
         card_dealer.get_mut_open_train_card_deck()[card_index] = Some(selected_card);
-        let card_dealer = Rc::new(RefCell::new(card_dealer));
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = Some(turn);
         player
             .public
@@ -1215,7 +1172,10 @@ mod tests {
             .unwrap();
         let num_train_cards = player.public.num_train_cards;
 
-        assert_eq!(player.draw_open_train_card(card_index, turn), Ok(true));
+        assert_eq!(
+            player.draw_open_train_card(card_index, turn, &mut card_dealer),
+            Ok(true)
+        );
         assert_eq!(
             player.private.train_cards.get(&selected_card).cloned(),
             Some(inventory_wild_cards + 1)
@@ -1237,13 +1197,11 @@ mod tests {
 
     #[test]
     fn player_draw_close_train_card_drawn_destination_card_already() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
-
         let turn = 5;
+        let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = Some(turn);
         player
             .public
@@ -1252,7 +1210,7 @@ mod tests {
             .push(PlayerAction::DrewDestinationCards);
 
         assert_eq!(
-            player.draw_close_train_card(turn),
+            player.draw_close_train_card(turn, &mut card_dealer),
             Err(String::from(
                 "Cannot draw a train card after having already drawn destination cards this turn."
             ))
@@ -1261,11 +1219,9 @@ mod tests {
 
     #[test]
     fn player_draw_close_train_card_first_draw() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let mut card_dealer = CardDealer::new();
-
         let turn = 5;
         let selected_card = TrainColor::Wild;
+        let mut card_dealer = CardDealer::new();
 
         // Insert the wild card 4 cards under the top, so it reaches the top of the deck
         // after the initial draw.
@@ -1273,10 +1229,9 @@ mod tests {
         card_dealer
             .get_mut_close_train_card_deck()
             .insert(close_train_card_deck_len - 4, selected_card);
-        let card_dealer = Rc::new(RefCell::new(card_dealer));
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = Some(turn - 1);
 
         let inventory_wild_cards = player
@@ -1287,7 +1242,10 @@ mod tests {
             .unwrap();
         let num_train_cards = player.public.num_train_cards;
 
-        assert_eq!(player.draw_close_train_card(turn), Ok(false));
+        assert_eq!(
+            player.draw_close_train_card(turn, &mut card_dealer),
+            Ok(false)
+        );
         assert_eq!(
             player.private.train_cards.get(&selected_card).cloned(),
             Some(inventory_wild_cards + 1)
@@ -1309,11 +1267,9 @@ mod tests {
 
     #[test]
     fn player_draw_close_train_card_second_draw() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let mut card_dealer = CardDealer::new();
-
         let turn = 5;
         let selected_card = TrainColor::Green;
+        let mut card_dealer = CardDealer::new();
 
         // Insert the selected card 4 cards under the top, so it reaches the top of the deck
         // after the initial draw.
@@ -1321,7 +1277,6 @@ mod tests {
         card_dealer
             .get_mut_close_train_card_deck()
             .insert(close_train_card_deck_len - 4, selected_card);
-        let card_dealer = Rc::new(RefCell::new(card_dealer));
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
         player.public.turn_actions.turn = Some(turn);
@@ -1331,7 +1286,7 @@ mod tests {
             .actions
             .push(PlayerAction::DrewCloseTrainCard);
         player.public.turn_actions.description.push(String::new());
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
 
         let inventory_wild_cards = player
             .private
@@ -1341,7 +1296,10 @@ mod tests {
             .unwrap();
         let num_train_cards = player.public.num_train_cards;
 
-        assert_eq!(player.draw_close_train_card(turn), Ok(true));
+        assert_eq!(
+            player.draw_close_train_card(turn, &mut card_dealer),
+            Ok(true)
+        );
         assert_eq!(
             player.private.train_cards.get(&selected_card).cloned(),
             Some(inventory_wild_cards + 1)
@@ -1363,13 +1321,11 @@ mod tests {
 
     #[test]
     fn player_draw_destination_card_drawn_train_card_already() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
-
         let turn = 5;
+        let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = Some(turn);
         player
             .public
@@ -1378,7 +1334,7 @@ mod tests {
             .push(PlayerAction::DrewCloseTrainCard);
 
         assert_eq!(
-            player.draw_destination_cards(turn),
+            player.draw_destination_cards(turn, &mut card_dealer),
             Err(String::from(
                 "Cannot draw destination cards if you have drawn a train card this turn."
             ))
@@ -1387,25 +1343,15 @@ mod tests {
 
     #[test]
     fn player_draw_destination_card_drawn_train_card_emtpy() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = CardDealer::new();
-
-        let card_dealer = Rc::new(RefCell::new(card_dealer));
-
         let turn = 5;
+        let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
-        player
-            .card_dealer
-            .as_mut()
-            .unwrap()
-            .borrow_mut()
-            .get_mut_destination_card_deck()
-            .clear();
+        player.initialize_when_game_starts(&mut card_dealer);
+        card_dealer.get_mut_destination_card_deck().clear();
 
         assert_eq!(
-            player.draw_destination_cards(turn),
+            player.draw_destination_cards(turn, &mut card_dealer),
             Err(String::from(
                 "Cannot draw from the destination card deck, as it is empty."
             ))
@@ -1414,20 +1360,14 @@ mod tests {
 
     #[test]
     fn player_draw_destination_card() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
-
         let turn = 5;
+        let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
         player.private.pending_destination_cards.clear();
 
-        let expected_destination_cards: Vec<DestinationCard> = player
-            .card_dealer
-            .as_ref()
-            .unwrap()
-            .borrow()
+        let expected_destination_cards: Vec<DestinationCard> = card_dealer
             .get_destination_card_deck()
             .iter()
             .rev()
@@ -1435,7 +1375,10 @@ mod tests {
             .cloned()
             .collect();
 
-        assert_eq!(player.draw_destination_cards(turn), Ok(false));
+        assert_eq!(
+            player.draw_destination_cards(turn, &mut card_dealer),
+            Ok(false)
+        );
         assert_eq!(
             player.private.pending_destination_cards.as_slice(),
             expected_destination_cards
@@ -1457,18 +1400,16 @@ mod tests {
 
     #[test]
     fn player_select_destination_card_initial_wrong_size() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
-
         let turn = None;
+        let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
 
         let selected_cards = smallvec![true, true];
 
         assert_eq!(
-            player.select_destination_cards(selected_cards, turn),
+            player.select_destination_cards(selected_cards, turn, &mut card_dealer),
             Err(String::from(
                 "Submitted 2 destination cards decisions, but 3 were drawn."
             ))
@@ -1477,18 +1418,16 @@ mod tests {
 
     #[test]
     fn player_select_destination_card_initial_not_enough_selected() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
-
         let turn = None;
+        let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
 
         let selected_cards = smallvec![true, false, false];
 
         assert_eq!(
-            player.select_destination_cards(selected_cards, turn),
+            player.select_destination_cards(selected_cards, turn, &mut card_dealer),
             Err(String::from(
                 "Cannot select only 1 destination cards, whilst the minimum is 2."
             ))
@@ -1497,13 +1436,11 @@ mod tests {
 
     #[test]
     fn player_select_destination_card_initial() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
-
         let turn = None;
+        let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
 
         let selected_destination_cards_decisions = smallvec![true, false, true];
         // The selected cards are inserted in opposite order of what they are in the pending list.
@@ -1513,7 +1450,11 @@ mod tests {
         ];
         let discarded_destination_card = player.private.pending_destination_cards[1].clone();
         assert_eq!(
-            player.select_destination_cards(selected_destination_cards_decisions, turn),
+            player.select_destination_cards(
+                selected_destination_cards_decisions,
+                turn,
+                &mut card_dealer
+            ),
             Ok(true)
         );
         assert!(player.public.turn_actions.turn.is_none());
@@ -1533,26 +1474,18 @@ mod tests {
         );
         assert!(player.private.pending_destination_cards.is_empty());
         assert_eq!(
-            player
-                .card_dealer
-                .as_ref()
-                .unwrap()
-                .borrow()
-                .get_destination_card_deck()
-                .front(),
+            card_dealer.get_destination_card_deck().front(),
             Some(&discarded_destination_card)
         );
     }
 
     #[test]
     fn player_select_destination_card_not_initial_drawn_train_card_already() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
-
         let turn = Some(5);
+        let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = turn;
         player
             .public
@@ -1568,7 +1501,7 @@ mod tests {
         let selected_cards = smallvec![true, false, false];
 
         assert_eq!(
-            player.select_destination_cards(selected_cards, turn),
+            player.select_destination_cards(selected_cards, turn, &mut card_dealer),
             Err(String::from(
                 "Cannot select destination cards after having drawn a train card."
             ))
@@ -1577,13 +1510,11 @@ mod tests {
 
     #[test]
     fn player_select_destination_card_not_initial_not_enough_selected() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
-
         let turn = Some(5);
+        let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = turn;
         player
             .public
@@ -1599,7 +1530,7 @@ mod tests {
         let selected_cards = smallvec![false, false, false];
 
         assert_eq!(
-            player.select_destination_cards(selected_cards, turn),
+            player.select_destination_cards(selected_cards, turn, &mut card_dealer),
             Err(String::from(
                 "Cannot select only 0 destination cards, whilst the minimum is 1."
             ))
@@ -1608,13 +1539,11 @@ mod tests {
 
     #[test]
     fn player_select_destination_card_not_initial() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
-
         let turn = Some(5);
+        let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = turn;
         player
             .public
@@ -1634,7 +1563,11 @@ mod tests {
             player.private.pending_destination_cards[2].clone(),
         ];
         assert_eq!(
-            player.select_destination_cards(selected_destination_cards_decisions, turn),
+            player.select_destination_cards(
+                selected_destination_cards_decisions,
+                turn,
+                &mut card_dealer
+            ),
             Ok(true)
         );
         assert_eq!(player.public.turn_actions.turn, turn);
@@ -1654,11 +1587,7 @@ mod tests {
         );
         assert!(player.private.pending_destination_cards.is_empty());
         assert_eq!(
-            player
-                .card_dealer
-                .as_ref()
-                .unwrap()
-                .borrow()
+            card_dealer
                 .get_destination_card_deck()
                 .iter()
                 .take(2)
@@ -1670,11 +1599,10 @@ mod tests {
 
     #[test]
     fn player_get_same_player_state() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
+        let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
 
         let player_state = player.get_player_state(PLAYER_ID);
         assert_eq!(&player.public, player_state.public_player_state);
@@ -1684,11 +1612,10 @@ mod tests {
 
     #[test]
     fn player_get_different_player_state() {
-        let map = Rc::new(Map::new(2).unwrap());
-        let card_dealer = Rc::new(RefCell::new(CardDealer::new()));
+        let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
-        player.initialize_when_game_starts(map, card_dealer);
+        player.initialize_when_game_starts(&mut card_dealer);
 
         let player_state = player.get_player_state(PLAYER_ID + 1);
         assert_eq!(&player.public, player_state.public_player_state);
