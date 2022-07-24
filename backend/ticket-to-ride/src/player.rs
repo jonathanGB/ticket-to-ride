@@ -1098,10 +1098,8 @@ mod tests {
             PlayerAction::DrewOpenWildTrainCard
         );
         assert_eq!(player.public.turn_actions.description.len(), 1);
-        assert_eq!(
-            player.public.turn_actions.description[0],
-            String::from("Player 0 drew a wild train card from the open deck.")
-        );
+        assert!(player.public.turn_actions.description[0]
+            .starts_with("Player 0 drew a wild train card from the open deck."));
     }
 
     #[test]
@@ -1140,10 +1138,8 @@ mod tests {
             PlayerAction::DrewOpenNonWildTrainCard
         );
         assert_eq!(player.public.turn_actions.description.len(), 1);
-        assert_eq!(
-            player.public.turn_actions.description[0],
-            String::from("Player 0 drew a red train card from the open deck.")
-        );
+        assert!(player.public.turn_actions.description[0]
+            .starts_with("Player 0 drew a red train card from the open deck."));
     }
 
     #[test]
@@ -1189,10 +1185,8 @@ mod tests {
             PlayerAction::DrewOpenNonWildTrainCard
         );
         assert_eq!(player.public.turn_actions.description.len(), 2);
-        assert_eq!(
-            player.public.turn_actions.description[1],
-            String::from("Player 0 drew a red train card from the open deck.")
-        );
+        assert!(player.public.turn_actions.description[1]
+            .starts_with("Player 0 drew a red train card from the open deck."));
     }
 
     #[test]
