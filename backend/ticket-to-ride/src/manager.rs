@@ -11,7 +11,7 @@ use strum::IntoEnumIterator;
 
 const MAX_PLAYERS: usize = 5;
 
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum GamePhase {
     InLobby,
@@ -92,6 +92,18 @@ impl Manager {
             "To add a player, there must be at most four other players.
              Thus, we should be able to generate a random name in at most 5 tries."
         )
+    }
+
+    // TODO: test this.
+    pub fn change_player_name(&mut self, player_id: usize, new_name: String) -> bool {
+        for player in &self.players {
+            if player.name() == new_name {
+                return false;
+            }
+        }
+
+        self.players[player_id].change_name(new_name);
+        true
     }
 }
 
