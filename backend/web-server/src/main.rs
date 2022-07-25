@@ -68,7 +68,7 @@ async fn load_game(
 }
 
 #[put(
-    "/game/<game_id>/name",
+    "/game/<game_id>/player/name",
     format = "json",
     data = "<change_name_request>"
 )]
