@@ -10,3 +10,4 @@ rocket = {version = "0.5.0-rc.2", features = ["uuid", "secrets", "json"]}
 uuid = {version = "1.1", features = ["v4", "fast-rng"]}
 dashmap = "5.3"
 parse-display = "0.5"
+ticket-to-ride = {path = "../ticket-to-ride"}

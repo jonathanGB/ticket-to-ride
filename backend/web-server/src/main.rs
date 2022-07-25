@@ -7,8 +7,7 @@ mod authenticator;
 mod controller;
 mod model;
 
-use controller::{Controller, GameState};
-use dashmap::DashMap;
+use controller::{GameIdManagerMapping, WriteController};
 use rocket::serde::{json::Json, Serialize};
 use rocket::{
     fs::{FileServer, NamedFile},
@@ -54,11 +53,11 @@ async fn load_game(
     game_id: Uuid,
     cookies: &CookieJar<'_>,
     origin: &Origin<'_>,
-    state: &State<DashMap<Uuid, Vec<usize>>>,
+    state: &State<GameIdManagerMapping>,
 ) -> Result<NamedFile, LoadGameError> {
     match state.get_mut(&game_id) {
         Some(game_id_and_state) => {
-            if !Controller::new(game_id_and_state).load_game(cookies, origin) {
+            if !WriteController::new(game_id_and_state).load_game(cookies, origin) {
                 return Err(LoadGameError::Unauthorized(redirect_to_root()));
             }
 
@@ -72,8 +71,8 @@ async fn load_game(
 }
 
 #[post("/create")]
-fn create_game(state: &State<DashMap<Uuid, Vec<usize>>>) -> Redirect {
-    let game_id = Controller::create_game(state);
+fn create_game(state: &State<GameIdManagerMapping>) -> Redirect {
+    let game_id = WriteController::create_game(state);
 
     Redirect::to(uri!(load_game(game_id)))
 }
@@ -99,12 +98,12 @@ fn get_game_state(game_id: Uuid, cookies: &CookieJar) -> Json<Foo> {
 
 #[launch]
 fn rocket() -> _ {
-    let h = DashMap::<Uuid, GameState>::new();
+    let game_id_manager_mapping = GameIdManagerMapping::new();
     rocket::build()
         .mount(
             "/",
             routes![root, index, robots, create_game, load_game, get_game_state],
         )
         .mount("/static", FileServer::from(STATIC_FILES_PATH))
-        .manage(h)
+        .manage(game_id_manager_mapping)
 }
