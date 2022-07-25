@@ -3,13 +3,12 @@ use crate::card::TrainColor::*;
 use crate::city::{City, CityToCity};
 
 use array_init::array_init;
+use atom::AtomSetOnce;
 use smallvec::SmallVec;
-use std::cell::Cell;
 use std::cmp::max;
 use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::ops::RangeInclusive;
-use std::rc::Rc;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{atomic::Ordering, mpsc, Arc, Mutex};
 use threadpool::ThreadPool;
 
 lazy_static! {
@@ -24,12 +23,12 @@ const MAX_ROUTES_PER_CITY: usize = 7;
 
 /// There can be multiple "parallel" routes between two cities.
 /// `Route` represents one of them.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct Route {
     /// By whom this route is claimed, if any.
     /// Because the overall map holds a separate route from A to B and from B to A, we encapsulate the
-    /// owner inside of an `Rc<Cell<...>>` for shared interior mutability of the claimer.
-    claimer: Rc<Cell<Option<usize>>>,
+    /// claimer inside of an atomic pointer for shared interior mutability of the claimer across threads.
+    claimer: Arc<AtomSetOnce<Box<Option<usize>>>>,
     /// The color of this specific route.
     /// The `Wild` color means that any color matches.
     train_color: TrainColor,
@@ -37,24 +36,38 @@ struct Route {
     length: u8,
 }
 
+impl PartialEq<Route> for Route {
+    fn eq(&self, other: &Route) -> bool {
+        self.train_color == other.train_color
+            && self.length == other.length
+            && self.claimer.get(Ordering::SeqCst) == other.claimer.get(Ordering::SeqCst)
+    }
+}
+
 impl Route {
     /// Returns a `Route` with the given color and length.
     /// By default, a route is not claimed.
     fn new(train_color: TrainColor, length: u8) -> Self {
         Self {
-            claimer: Rc::new(Cell::new(None)),
+            claimer: Arc::new(AtomSetOnce::empty()),
             train_color,
             length,
         }
     }
 
+    #[inline]
     /// The player ID claiming this route, if any.
     fn claimer(&self) -> Option<usize> {
-        self.claimer.get()
+        self.claimer
+            .get(Ordering::SeqCst)
+            .map(|claimer| *claimer)
+            .flatten()
     }
 
-    fn set_claimer(&self, player_id: usize) {
-        self.claimer.set(Some(player_id));
+    #[inline]
+    fn set_claimer(&mut self, player_id: usize) {
+        self.claimer
+            .set_if_none(Box::new(Some(player_id)), Ordering::SeqCst);
     }
 }
 
@@ -507,7 +520,7 @@ impl Map {
     /// use ticket_to_ride::map::{ClaimedRoute, Map};
     /// use ticket_to_ride::card::TrainColor;
     ///
-    /// let map = Map::new(2).unwrap();
+    /// let mut map = Map::new(2).unwrap();
     ///
     /// let route = (City::Raleigh, City::Washington);
     /// let parallel_route_index = 0;
@@ -531,7 +544,7 @@ impl Map {
     /// );
     /// ```
     pub fn claim_route_for_player(
-        &self,
+        &mut self,
         route: CityToCity,
         parallel_route_index: usize,
         cards: &Vec<TrainColor>,
@@ -550,13 +563,13 @@ impl Map {
     }
 
     fn can_route_be_claimed_by_player(
-        &self,
+        &mut self,
         (start, end): CityToCity,
         parallel_route_index: usize,
         cards: &Vec<TrainColor>,
         player_id: usize,
-    ) -> Result<&Route, String> {
-        let parallel_routes = self.all_parallel_routes.get(&(start, end));
+    ) -> Result<&mut Route, String> {
+        let parallel_routes = self.all_parallel_routes.get_mut(&(start, end));
         if parallel_routes.is_none() {
             return Err(format!("No routes exist between {} and {}.", start, end));
         }
@@ -566,24 +579,6 @@ impl Map {
             return Err(format!(
                 "The selected route ({}) between {} and {} does not exist.",
                 parallel_route_index, start, end
-            ));
-        }
-
-        let claimed_route = &parallel_routes[parallel_route_index];
-        if claimed_route.length != cards.len() as u8 {
-            return Err(format!(
-                "A route between {} and {} needs {} cards, but {} were provided.",
-                start,
-                end,
-                claimed_route.length,
-                cards.len()
-            ));
-        }
-
-        if claimed_route.claimer().is_some() {
-            return Err(format!(
-                "The selected route between {} and {} is already claimed.",
-                start, end
             ));
         }
 
@@ -606,6 +601,24 @@ impl Map {
                 }
                 _ => {}
             }
+        }
+
+        let claimed_route = &mut parallel_routes[parallel_route_index];
+        if claimed_route.length != cards.len() as u8 {
+            return Err(format!(
+                "A route between {} and {} needs {} cards, but {} were provided.",
+                start,
+                end,
+                claimed_route.length,
+                cards.len()
+            ));
+        }
+
+        if claimed_route.claimer().is_some() {
+            return Err(format!(
+                "The selected route between {} and {} is already claimed.",
+                start, end
+            ));
         }
 
         // Amongst the cards used to claim this route, we want to know what is their color.
@@ -658,7 +671,7 @@ impl Map {
     /// use ticket_to_ride::map::Map;
     /// use ticket_to_ride::card::TrainColor;
     ///
-    /// let map = Map::new(2).unwrap();
+    /// let mut map = Map::new(2).unwrap();
     ///
     /// let destination = (City::Raleigh, City::NewYork);
     /// let player_id = 0;
@@ -877,6 +890,18 @@ mod tests {
     }
 
     #[test]
+    fn parallel_routes_macro_with_different_color() {
+        let expected_parallel_routes: ParallelRoutes = smallvec![Route::new(Wild, 2)];
+        assert_ne!(parallel_routes! {2, Red}, expected_parallel_routes);
+    }
+
+    #[test]
+    fn parallel_routes_macro_with_different_length() {
+        let expected_parallel_routes: ParallelRoutes = smallvec![Route::new(Wild, 2)];
+        assert_ne!(parallel_routes! {3, Wild}, expected_parallel_routes);
+    }
+
+    #[test]
     fn parallel_routes_macro_with_two_empty_colors() {
         let expected_parallel_routes: ParallelRoutes =
             smallvec![Route::new(Wild, 5), Route::new(Wild, 5)];
@@ -991,7 +1016,7 @@ mod tests {
 
     #[test]
     fn claim_non_existent_route() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
 
         let mut args = ClaimRouteArgs::default();
         args.route = (City::LosAngeles, City::Charleston);
@@ -1013,7 +1038,7 @@ mod tests {
 
     #[test]
     fn claim_route_for_player_with_large_route_index() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
 
         let mut args = ClaimRouteArgs::default();
         args.parallel_route_index = 10;
@@ -1035,7 +1060,7 @@ mod tests {
 
     #[test]
     fn claim_route_for_player_with_not_enough_cards() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
 
         let mut args = ClaimRouteArgs::default();
         args.cards.clear();
@@ -1057,7 +1082,7 @@ mod tests {
 
     #[test]
     fn claim_route_for_player_with_too_many_cards() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
 
         let mut args = ClaimRouteArgs::default();
         args.cards = vec![Orange; 5];
@@ -1079,11 +1104,11 @@ mod tests {
 
     #[test]
     fn claim_route_for_player_already_owned_by_player() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
 
         let args = ClaimRouteArgs::default();
 
-        let parallel_routes = map.all_parallel_routes.get(&args.route);
+        let parallel_routes = map.all_parallel_routes.get_mut(&args.route);
         assert!(parallel_routes.is_some());
         let parallel_routes = parallel_routes.unwrap();
         parallel_routes[args.parallel_route_index].set_claimer(args.player_id);
@@ -1091,10 +1116,23 @@ mod tests {
         let expected_result = Err(String::from(
             "The selected route between Denver and Kansas City is already claimed.",
         ));
-
         assert_eq!(
             map.claim_route_for_player(
                 args.route,
+                args.parallel_route_index,
+                &args.cards,
+                args.player_id
+            ),
+            expected_result
+        );
+
+        // Claiming A->B should also claim B->A, so the following should also fail.
+        let expected_result = Err(String::from(
+            "The selected route between Kansas City and Denver is already claimed.",
+        ));
+        assert_eq!(
+            map.claim_route_for_player(
+                (args.route.1, args.route.0),
                 args.parallel_route_index,
                 &args.cards,
                 args.player_id
@@ -1105,11 +1143,11 @@ mod tests {
 
     #[test]
     fn claim_route_for_player_parallel_also_owned_by_player() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
 
         let args = ClaimRouteArgs::default();
 
-        let parallel_routes = map.all_parallel_routes.get(&args.route);
+        let parallel_routes = map.all_parallel_routes.get_mut(&args.route);
         assert!(parallel_routes.is_some());
         let parallel_routes = parallel_routes.unwrap();
         parallel_routes[args.other_parallel_route_index].set_claimer(args.player_id);
@@ -1132,11 +1170,11 @@ mod tests {
     #[test]
     fn claim_route_for_player_parallel_route_owned_and_parallel_disabled() {
         // With two players, different players cannot claim parallel routes.
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
 
         let args = ClaimRouteArgs::default();
 
-        let parallel_routes = map.all_parallel_routes.get(&args.route);
+        let parallel_routes = map.all_parallel_routes.get_mut(&args.route);
         assert!(parallel_routes.is_some());
         let parallel_routes = parallel_routes.unwrap();
         parallel_routes[args.other_parallel_route_index].set_claimer(args.other_player_id);
@@ -1156,25 +1194,46 @@ mod tests {
         );
     }
 
+    fn get_parallel_route(map: &Map, route: CityToCity, parallel_route_index: usize) -> &Route {
+        let parallel_routes = map.all_parallel_routes.get(&route);
+        assert!(parallel_routes.is_some());
+        let parallel_routes = parallel_routes.unwrap();
+        assert!(parallel_route_index < parallel_routes.len());
+
+        &parallel_routes[parallel_route_index]
+    }
+
+    fn get_mut_parallel_route(
+        map: &mut Map,
+        route: CityToCity,
+        parallel_route_index: usize,
+    ) -> &mut Route {
+        let parallel_routes = map.all_parallel_routes.get_mut(&route);
+        assert!(parallel_routes.is_some());
+        let parallel_routes = parallel_routes.unwrap();
+        assert!(parallel_route_index < parallel_routes.len());
+
+        &mut parallel_routes[parallel_route_index]
+    }
+
     #[test]
     fn claim_route_for_player_parallel_route_owned_but_parallel_enabled() {
         // With four players, different players can claim parallel routes.
-        let map = Map::new(4).unwrap();
+        let mut map = Map::new(4).unwrap();
 
         let args = ClaimRouteArgs::default();
 
-        let parallel_routes = map.all_parallel_routes.get(&args.route);
-        assert!(parallel_routes.is_some());
-        let parallel_routes = parallel_routes.unwrap();
-        let claimed_route = &parallel_routes[args.parallel_route_index];
-        parallel_routes[args.other_parallel_route_index].set_claimer(args.other_player_id);
+        get_mut_parallel_route(&mut map, args.route, args.other_parallel_route_index)
+            .set_claimer(args.other_player_id);
 
-        assert!(claimed_route.claimer().is_none());
+        let claimed_parallel_route =
+            get_parallel_route(&map, args.route, args.parallel_route_index);
+        assert!(claimed_parallel_route.claimer().is_none());
 
         let expected_result = Ok(ClaimedRoute {
             route: args.route,
             parallel_route_index: args.parallel_route_index,
-            length: claimed_route.length,
+            length: claimed_parallel_route.length,
         });
 
         assert_eq!(
@@ -1187,12 +1246,15 @@ mod tests {
             expected_result
         );
 
-        assert_eq!(claimed_route.claimer(), Some(args.player_id));
+        assert_eq!(
+            get_parallel_route(&map, args.route, args.parallel_route_index).claimer(),
+            Some(args.player_id)
+        );
     }
 
     #[test]
     fn claim_route_for_player_cards_different_colors() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
 
         let mut args = ClaimRouteArgs::default();
         args.cards = vec![Orange, Orange, Blue, Orange];
@@ -1214,7 +1276,7 @@ mod tests {
 
     #[test]
     fn claim_route_for_player_cards_single_wrong_color() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
 
         let mut args = ClaimRouteArgs::default();
         args.cards = vec![Red; 4];
@@ -1236,14 +1298,11 @@ mod tests {
 
     #[test]
     fn claim_route_for_player_cards_single_right_color() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
 
         let args = ClaimRouteArgs::default();
-        let parallel_routes = map.all_parallel_routes.get(&args.route);
-        assert!(parallel_routes.is_some());
-        let parallel_routes = parallel_routes.unwrap();
-        let claimed_route = &parallel_routes[args.parallel_route_index];
 
+        let claimed_route = get_parallel_route(&map, args.route, args.parallel_route_index);
         assert!(claimed_route.claimer().is_none());
 
         let expected_result = Ok(ClaimedRoute {
@@ -1262,20 +1321,20 @@ mod tests {
             expected_result
         );
 
-        assert_eq!(claimed_route.claimer(), Some(args.player_id));
+        assert_eq!(
+            get_parallel_route(&map, args.route, args.parallel_route_index).claimer(),
+            Some(args.player_id)
+        );
     }
 
     #[test]
     fn claim_route_for_player_cards_color_and_wild() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
 
         let mut args = ClaimRouteArgs::default();
         args.cards = vec![Orange, Wild, Wild, Orange];
-        let parallel_routes = map.all_parallel_routes.get(&args.route);
-        assert!(parallel_routes.is_some());
-        let parallel_routes = parallel_routes.unwrap();
-        let claimed_route = &parallel_routes[args.parallel_route_index];
 
+        let claimed_route = get_parallel_route(&map, args.route, args.parallel_route_index);
         assert!(claimed_route.claimer().is_none());
 
         let expected_result = Ok(ClaimedRoute {
@@ -1294,21 +1353,20 @@ mod tests {
             expected_result
         );
 
-        assert_eq!(claimed_route.claimer(), Some(args.player_id));
+        assert_eq!(
+            get_parallel_route(&map, args.route, args.parallel_route_index).claimer(),
+            Some(args.player_id)
+        );
     }
 
     #[test]
     fn claim_route_for_player_cards_only_wild() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
 
         let mut args = ClaimRouteArgs::default();
         args.cards = vec![Wild; 4];
 
-        let parallel_routes = map.all_parallel_routes.get(&args.route);
-        assert!(parallel_routes.is_some());
-        let parallel_routes = parallel_routes.unwrap();
-        let claimed_route = &parallel_routes[args.parallel_route_index];
-
+        let claimed_route = get_parallel_route(&map, args.route, args.parallel_route_index);
         assert!(claimed_route.claimer().is_none());
 
         let expected_result = Ok(ClaimedRoute {
@@ -1327,23 +1385,22 @@ mod tests {
             expected_result
         );
 
-        assert_eq!(claimed_route.claimer(), Some(args.player_id));
+        assert_eq!(
+            get_parallel_route(&map, args.route, args.parallel_route_index).claimer(),
+            Some(args.player_id)
+        );
     }
 
     #[test]
     fn claim_wild_route_cards_single_color() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
 
         let mut args = ClaimRouteArgs::default();
         args.route = (City::Pittsburgh, City::Toronto);
         args.parallel_route_index = 0;
         args.cards = vec![Green; 2];
 
-        let parallel_routes = map.all_parallel_routes.get(&args.route);
-        assert!(parallel_routes.is_some());
-        let parallel_routes = parallel_routes.unwrap();
-        let claimed_route = &parallel_routes[args.parallel_route_index];
-
+        let claimed_route = get_parallel_route(&map, args.route, args.parallel_route_index);
         assert!(claimed_route.claimer().is_none());
 
         let expected_result = Ok(ClaimedRoute {
@@ -1362,22 +1419,23 @@ mod tests {
             expected_result
         );
 
-        assert_eq!(claimed_route.claimer(), Some(args.player_id));
+        assert_eq!(
+            get_parallel_route(&map, args.route, args.parallel_route_index).claimer(),
+            Some(args.player_id)
+        );
     }
 
     #[test]
     fn claim_route_for_player_impacts_opposite_direction() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
 
         let args = ClaimRouteArgs::default();
 
-        let opposite_direction_parallel_routes =
-            map.all_parallel_routes.get(&(args.route.1, args.route.0));
-        assert!(opposite_direction_parallel_routes.is_some());
-        let opposite_direction_parallel_routes = opposite_direction_parallel_routes.unwrap();
-        let opposite_direction_claimed_route =
-            &opposite_direction_parallel_routes[args.parallel_route_index];
-
+        let opposite_direction_claimed_route = get_parallel_route(
+            &map,
+            (args.route.1, args.route.0),
+            args.parallel_route_index,
+        );
         assert!(opposite_direction_claimed_route.claimer().is_none());
 
         let expected_result = Ok(ClaimedRoute {
@@ -1397,14 +1455,19 @@ mod tests {
         );
 
         assert_eq!(
-            opposite_direction_claimed_route.claimer(),
+            get_parallel_route(
+                &map,
+                (args.route.1, args.route.0),
+                args.parallel_route_index,
+            )
+            .claimer(),
             Some(args.player_id)
         );
     }
 
     // Test helper that claims a given route for a given player.
-    fn claim_route_for_player(map: &Map, route: &CityToCity, player_id: usize) {
-        let parallel_routes = map.all_parallel_routes.get(route);
+    fn claim_route_for_player(map: &mut Map, route: &CityToCity, player_id: usize) {
+        let parallel_routes = map.all_parallel_routes.get_mut(route);
         assert!(parallel_routes.is_some());
         let parallel_routes = parallel_routes.unwrap();
         parallel_routes[0].set_claimer(player_id);
@@ -1424,10 +1487,10 @@ mod tests {
 
     #[test]
     fn destination_partially_fulfilled() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
         let player_id = 0;
 
-        claim_route_for_player(&map, &(City::SaltLakeCity, City::Denver), player_id);
+        claim_route_for_player(&mut map, &(City::SaltLakeCity, City::Denver), player_id);
 
         assert_eq!(
             map.has_player_fulfilled_destination((City::Denver, City::Portland), player_id),
@@ -1437,21 +1500,25 @@ mod tests {
 
     #[test]
     fn destination_fulfilled_by_another_player() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
         let player_id = 0;
         let other_player_id = 1;
 
         claim_route_for_player(
-            &map,
+            &mut map,
             &(City::SaltLakeCity, City::SanFrancisco),
             other_player_id,
         );
         claim_route_for_player(
-            &map,
+            &mut map,
             &(City::SaltLakeCity, City::SanFrancisco),
             other_player_id,
         );
-        claim_route_for_player(&map, &(City::Portland, City::SanFrancisco), other_player_id);
+        claim_route_for_player(
+            &mut map,
+            &(City::Portland, City::SanFrancisco),
+            other_player_id,
+        );
 
         assert_eq!(
             map.has_player_fulfilled_destination((City::Denver, City::Portland), player_id),
@@ -1461,10 +1528,10 @@ mod tests {
 
     #[test]
     fn short_destination_fulfilled() {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
         let player_id = 0;
 
-        claim_route_for_player(&map, &(City::ElPaso, City::Phoenix), player_id);
+        claim_route_for_player(&mut map, &(City::ElPaso, City::Phoenix), player_id);
 
         assert!(map.has_player_fulfilled_destination((City::Phoenix, City::ElPaso), player_id));
     }
@@ -1472,14 +1539,18 @@ mod tests {
     #[test]
     fn long_destination_fulfilled() {
         // We will claim multiple routes for player 0, and check whether Denver-Portland is fulfilled.
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
         let player_id = 0;
 
-        claim_route_for_player(&map, &(City::SaltLakeCity, City::Denver), player_id);
-        claim_route_for_player(&map, &(City::SaltLakeCity, City::SanFrancisco), player_id);
-        claim_route_for_player(&map, &(City::Portland, City::SanFrancisco), player_id);
-        claim_route_for_player(&map, &(City::SanFrancisco, City::LosAngeles), player_id);
-        claim_route_for_player(&map, &(City::Helena, City::SaltLakeCity), player_id);
+        claim_route_for_player(&mut map, &(City::SaltLakeCity, City::Denver), player_id);
+        claim_route_for_player(
+            &mut map,
+            &(City::SaltLakeCity, City::SanFrancisco),
+            player_id,
+        );
+        claim_route_for_player(&mut map, &(City::Portland, City::SanFrancisco), player_id);
+        claim_route_for_player(&mut map, &(City::SanFrancisco, City::LosAngeles), player_id);
+        claim_route_for_player(&mut map, &(City::Helena, City::SaltLakeCity), player_id);
 
         assert!(map.has_player_fulfilled_destination((City::Denver, City::Portland), player_id));
     }
@@ -1797,29 +1868,69 @@ mod tests {
     }
 
     #[bench]
+    fn benchmark_city_claim(b: &mut Bencher) {
+        let mut m = Map::new(2).unwrap();
+        let player_id = 0;
+
+        let mut routes: Vec<(CityToCity, usize, Vec<TrainColor>)> =
+            m.all_parallel_routes
+                .iter()
+                .map(|(route, parallel_routes)| {
+                    parallel_routes.iter().enumerate().map(
+                        |(parallel_route_index, parallel_route)| {
+                            (
+                                *route,
+                                parallel_route_index,
+                                vec![parallel_route.train_color; parallel_route.length as usize],
+                            )
+                        },
+                    )
+                })
+                .flatten()
+                .collect();
+        routes.shuffle(&mut thread_rng());
+
+        b.iter(|| {
+            #[allow(unused_must_use)]
+            for (route, parallel_route_index, cards) in &routes {
+                test::black_box(m.claim_route_for_player(
+                    *route,
+                    *parallel_route_index,
+                    cards,
+                    player_id,
+                ));
+            }
+        })
+    }
+
+    #[bench]
     fn benchmark_create_us_map(b: &mut Bencher) {
         b.iter(|| Map::new(2).unwrap())
     }
 
     #[bench]
     fn benchmark_destination_fulfilled(b: &mut Bencher) {
-        let map = Map::new(2).unwrap();
+        let mut map = Map::new(2).unwrap();
         let player_id = 0;
 
-        claim_route_for_player(&map, &(City::SaltLakeCity, City::Denver), player_id);
-        claim_route_for_player(&map, &(City::SaltLakeCity, City::Portland), player_id);
-        claim_route_for_player(&map, &(City::SaltLakeCity, City::SanFrancisco), player_id);
-        claim_route_for_player(&map, &(City::Phoenix, City::Denver), player_id);
-        claim_route_for_player(&map, &(City::Phoenix, City::SantaFe), player_id);
-        claim_route_for_player(&map, &(City::Denver, City::KansasCity), player_id);
-        claim_route_for_player(&map, &(City::Omaha, City::Duluth), player_id);
-        claim_route_for_player(&map, &(City::Duluth, City::Winnipeg), player_id);
-        claim_route_for_player(&map, &(City::SantaFe, City::ElPaso), player_id);
-        claim_route_for_player(&map, &(City::ElPaso, City::Houston), player_id);
-        claim_route_for_player(&map, &(City::ElPaso, City::LosAngeles), player_id);
-        claim_route_for_player(&map, &(City::SanFrancisco, City::LosAngeles), player_id);
-        claim_route_for_player(&map, &(City::Houston, City::NewOrleans), player_id);
-        claim_route_for_player(&map, &(City::NewOrleans, City::Miami), player_id);
+        claim_route_for_player(&mut map, &(City::SaltLakeCity, City::Denver), player_id);
+        claim_route_for_player(&mut map, &(City::SaltLakeCity, City::Portland), player_id);
+        claim_route_for_player(
+            &mut map,
+            &(City::SaltLakeCity, City::SanFrancisco),
+            player_id,
+        );
+        claim_route_for_player(&mut map, &(City::Phoenix, City::Denver), player_id);
+        claim_route_for_player(&mut map, &(City::Phoenix, City::SantaFe), player_id);
+        claim_route_for_player(&mut map, &(City::Denver, City::KansasCity), player_id);
+        claim_route_for_player(&mut map, &(City::Omaha, City::Duluth), player_id);
+        claim_route_for_player(&mut map, &(City::Duluth, City::Winnipeg), player_id);
+        claim_route_for_player(&mut map, &(City::SantaFe, City::ElPaso), player_id);
+        claim_route_for_player(&mut map, &(City::ElPaso, City::Houston), player_id);
+        claim_route_for_player(&mut map, &(City::ElPaso, City::LosAngeles), player_id);
+        claim_route_for_player(&mut map, &(City::SanFrancisco, City::LosAngeles), player_id);
+        claim_route_for_player(&mut map, &(City::Houston, City::NewOrleans), player_id);
+        claim_route_for_player(&mut map, &(City::NewOrleans, City::Miami), player_id);
 
         b.iter(|| {
             test::black_box(
