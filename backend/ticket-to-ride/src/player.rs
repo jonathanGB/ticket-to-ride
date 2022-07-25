@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 // Every player starts the game with 45 cards.
 const NUM_OF_CARS: u8 = 45;
@@ -16,7 +17,7 @@ const NUM_OF_CARS: u8 = 45;
 pub type ActionResult = Result<bool, String>;
 
 /// Every player has their own color.
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, EnumIter, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PlayerColor {
     Black,
@@ -125,10 +126,10 @@ pub struct PublicPlayerState {
 }
 
 impl PublicPlayerState {
-    fn new(id: usize, color: PlayerColor) -> Self {
+    fn new(id: usize, color: PlayerColor, name: String) -> Self {
         Self {
             id,
-            name: format!("Player {}", id),
+            name,
             color,
             is_ready: false,
             is_done_playing: false,
@@ -186,9 +187,9 @@ pub struct Player {
 
 impl Player {
     /// Creates a new player.
-    pub fn new(id: usize, color: PlayerColor) -> Self {
+    pub fn new(id: usize, color: PlayerColor, name: String) -> Self {
         Self {
-            public: PublicPlayerState::new(id, color),
+            public: PublicPlayerState::new(id, color, name),
             private: PrivatePlayerState::new(),
         }
     }
@@ -196,7 +197,7 @@ impl Player {
     /// Initializes the player with the cards to start the game.
     ///
     /// The [`crate::manager::Manager`] must call this once the game has started, meaning we are out of the
-    /// [`crate::game_phase::GamePhase::InLobby`] phase.
+    /// [`crate::manager::GamePhase::InLobby`] phase.
     pub fn initialize_when_game_starts(&mut self, card_dealer: &mut CardDealer) {
         let (initial_train_cards, initial_destination_cards) = card_dealer.initial_draw();
 
@@ -211,6 +212,12 @@ impl Player {
         self.private
             .pending_destination_cards
             .extend(initial_destination_cards);
+    }
+
+    #[inline]
+    /// Access the player's id.
+    pub fn id(&self) -> usize {
+        self.public.id
     }
 
     /// Change the player's name.
@@ -773,7 +780,7 @@ mod tests {
 
     #[test]
     fn player_new() {
-        let player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         assert_eq!(player.public.id, PLAYER_ID);
         assert_eq!(player.public.color, PLAYER_COLOR);
         assert_eq!(player.public.name, format!("Player {}", PLAYER_ID));
@@ -793,7 +800,7 @@ mod tests {
 
     #[test]
     fn player_change() {
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         assert_eq!(player.color(), PLAYER_COLOR);
         assert_eq!(player.name(), format!("Player {}", PLAYER_ID));
         assert_eq!(player.ready(), false);
@@ -819,7 +826,7 @@ mod tests {
     #[test]
     fn player_initialize_when_game_starts() {
         let mut card_dealer = CardDealer::new();
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
 
         let sum_train_cards: u8 = player.private.train_cards.values().sum();
@@ -831,7 +838,7 @@ mod tests {
 
     #[test]
     fn player_claim_route_same_turn() {
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
 
         let route = (City::Chicago, City::Pittsburgh);
         let route_index = 0;
@@ -852,7 +859,7 @@ mod tests {
 
     #[test]
     fn player_claim_route_missing_cars() {
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
 
         let route = (City::Chicago, City::Pittsburgh);
         let route_index = 0;
@@ -874,7 +881,7 @@ mod tests {
 
     #[test]
     fn player_claim_route_missing_wild_cars() {
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
 
         let route = (City::Chicago, City::Pittsburgh);
         let route_index = 0;
@@ -896,7 +903,7 @@ mod tests {
 
     #[test]
     fn player_claim_route_missing_non_wild_cars() {
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
 
         let route = (City::Chicago, City::Pittsburgh);
         let route_index = 0;
@@ -930,7 +937,7 @@ mod tests {
             .claim_route_for_player(route, route_index, &cards, PLAYER_ID)
             .is_ok());
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         assert_eq!(player.public.num_train_cards, 4);
 
@@ -957,7 +964,7 @@ mod tests {
         let mut map = Map::new(2).unwrap();
         let mut card_dealer = CardDealer::new();
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         assert_eq!(player.public.num_train_cards, 4);
 
@@ -1020,7 +1027,7 @@ mod tests {
         let turn = 5;
         let mut card_dealer = CardDealer::new();
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = Some(turn);
         player
@@ -1045,7 +1052,7 @@ mod tests {
 
         card_dealer.get_mut_open_train_card_deck()[card_index] = Some(TrainColor::Wild);
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = Some(turn);
         player
@@ -1071,7 +1078,7 @@ mod tests {
 
         card_dealer.get_mut_open_train_card_deck()[card_index] = Some(selected_card);
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         let inventory_wild_cards = player
             .private
@@ -1111,7 +1118,7 @@ mod tests {
 
         card_dealer.get_mut_open_train_card_deck()[card_index] = Some(selected_card);
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         let inventory_wild_cards = player
             .private
@@ -1151,7 +1158,7 @@ mod tests {
 
         card_dealer.get_mut_open_train_card_deck()[card_index] = Some(selected_card);
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = Some(turn);
         player
@@ -1194,7 +1201,7 @@ mod tests {
         let turn = 5;
         let mut card_dealer = CardDealer::new();
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = Some(turn);
         player
@@ -1224,7 +1231,7 @@ mod tests {
             .get_mut_close_train_card_deck()
             .insert(close_train_card_deck_len - 4, selected_card);
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = Some(turn - 1);
 
@@ -1272,7 +1279,7 @@ mod tests {
             .get_mut_close_train_card_deck()
             .insert(close_train_card_deck_len - 4, selected_card);
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.public.turn_actions.turn = Some(turn);
         player
             .public
@@ -1318,7 +1325,7 @@ mod tests {
         let turn = 5;
         let mut card_dealer = CardDealer::new();
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = Some(turn);
         player
@@ -1340,7 +1347,7 @@ mod tests {
         let turn = 5;
         let mut card_dealer = CardDealer::new();
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         card_dealer.get_mut_destination_card_deck().clear();
 
@@ -1357,7 +1364,7 @@ mod tests {
         let turn = 5;
         let mut card_dealer = CardDealer::new();
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         player.private.pending_destination_cards.clear();
 
@@ -1397,7 +1404,7 @@ mod tests {
         let turn = None;
         let mut card_dealer = CardDealer::new();
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
 
         let selected_cards = smallvec![true, true];
@@ -1415,7 +1422,7 @@ mod tests {
         let turn = None;
         let mut card_dealer = CardDealer::new();
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
 
         let selected_cards = smallvec![true, false, false];
@@ -1433,7 +1440,7 @@ mod tests {
         let turn = None;
         let mut card_dealer = CardDealer::new();
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
 
         let selected_destination_cards_decisions = smallvec![true, false, true];
@@ -1478,7 +1485,7 @@ mod tests {
         let turn = Some(5);
         let mut card_dealer = CardDealer::new();
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = turn;
         player
@@ -1507,7 +1514,7 @@ mod tests {
         let turn = Some(5);
         let mut card_dealer = CardDealer::new();
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = turn;
         player
@@ -1536,7 +1543,7 @@ mod tests {
         let turn = Some(5);
         let mut card_dealer = CardDealer::new();
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
         player.public.turn_actions.turn = turn;
         player
@@ -1595,7 +1602,7 @@ mod tests {
     fn player_get_same_player_state() {
         let mut card_dealer = CardDealer::new();
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
 
         let player_state = player.get_player_state(PLAYER_ID);
@@ -1608,7 +1615,7 @@ mod tests {
     fn player_get_different_player_state() {
         let mut card_dealer = CardDealer::new();
 
-        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR);
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
 
         let player_state = player.get_player_state(PLAYER_ID + 1);

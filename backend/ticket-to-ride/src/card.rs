@@ -389,7 +389,7 @@ impl CardDealer {
         Ok(drawn_destination_cards)
     }
 
-    /// The first draw of the game, during the [`crate::game_phase::GamePhase::Starting`] phase, returns four train cards
+    /// The first draw of the game, during the [`crate::manager::GamePhase::Starting`] phase, returns four train cards
     /// and three destination cards.
     ///
     /// # Example

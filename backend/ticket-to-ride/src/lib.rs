@@ -19,7 +19,9 @@ pub mod card;
 /// Simple module that defines all the [`city::City`] variants, and connections between them
 /// as [`city::CityToCity`] tuples.
 pub mod city;
-pub mod game_phase;
+
+/// Module in charge of managing the whole game, via its [`manager::Manager`].
+/// This is the main entrypoint for clients interacting with the game logic.
 pub mod manager;
 
 /// Module that mostly pertains to the [`map::Map`], its routes -- and who claims them.
