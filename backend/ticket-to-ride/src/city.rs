@@ -1,5 +1,7 @@
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use strum_macros::Display;
+#[allow(unused_imports)]
+use strum::EnumCount;
+use strum_macros::{Display, EnumCount as EnumCountMacro};
 
 /// All the different cities on the map.
 #[derive(
@@ -8,6 +10,7 @@ use strum_macros::Display;
     Debug,
     Deserialize_repr,
     Display,
+    EnumCountMacro,
     Eq,
     Hash,
     PartialEq,
@@ -75,6 +78,11 @@ pub type CityToCity = (City, City);
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn city_count() {
+        assert_eq!(City::COUNT, 36);
+    }
 
     #[test]
     fn simple_city_to_string() {

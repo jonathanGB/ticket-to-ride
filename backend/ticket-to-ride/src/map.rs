@@ -9,14 +9,12 @@ use std::cmp::max;
 use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::ops::RangeInclusive;
 use std::sync::{atomic::Ordering, mpsc, Arc, Mutex};
+use strum::EnumCount;
 use threadpool::ThreadPool;
 
 lazy_static! {
     static ref THREAD_POOL: Mutex<ThreadPool> = Mutex::new(ThreadPool::default());
 }
-
-// This assumes that the largest city, as ordered in `City`, is Winnipeg.
-const NUM_CITIES: usize = City::Winnipeg as usize;
 
 // Helena has the highest number of neighbors, which is 7 adjacent cities.
 const MAX_ROUTES_PER_CITY: usize = 7;
@@ -697,8 +695,8 @@ impl Map {
         (destination_start, destination_end): CityToCity,
         player_id: usize,
     ) -> bool {
-        let mut cities_visited = [false; NUM_CITIES];
-        let mut cities_to_visit = VecDeque::with_capacity(NUM_CITIES);
+        let mut cities_visited = [false; City::COUNT];
+        let mut cities_to_visit = VecDeque::with_capacity(City::COUNT);
 
         self.extend_neighboring_cities_to_visit_claimed_by_player(
             destination_start,
@@ -727,7 +725,7 @@ impl Map {
         &self,
         city: City,
         player_id: usize,
-        cities_visited: &mut [bool; NUM_CITIES],
+        cities_visited: &mut [bool; City::COUNT],
         cities_to_visit: &mut VecDeque<City>,
     ) {
         cities_to_visit.extend(
@@ -784,7 +782,7 @@ impl Map {
 
         // Maps each city to a list of adjacent cities, including the length of the route connecting the two.
         // Start cities are indexed by their usize representation.
-        let mut all_routes: [SmallVec<[(City, u8); MAX_ROUTES_PER_CITY]>; NUM_CITIES] =
+        let mut all_routes: [SmallVec<[(City, u8); MAX_ROUTES_PER_CITY]>; City::COUNT] =
             array_init(|_| SmallVec::new());
 
         // Deduplicate the cities that will be explored.
@@ -830,7 +828,7 @@ impl Map {
 
     fn get_longest_route_from_city(
         start: City,
-        all_routes: &[SmallVec<[(City, u8); 7]>; NUM_CITIES],
+        all_routes: &[SmallVec<[(City, u8); 7]>; City::COUNT],
         routes_visited: HashSet<CityToCity>,
         current_length: u16,
     ) -> u16 {
