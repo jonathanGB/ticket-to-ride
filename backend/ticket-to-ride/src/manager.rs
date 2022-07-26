@@ -95,15 +95,18 @@ impl Manager {
     }
 
     // TODO: test this.
-    pub fn change_player_name(&mut self, player_id: usize, new_name: String) -> bool {
+    pub fn change_player_name(&mut self, player_id: usize, new_name: String) -> Result<(), String> {
         for player in &self.players {
             if player.name() == new_name {
-                return false;
+                return Err(format!(
+                    "Cannot change name to already existing `{}`",
+                    new_name
+                ));
             }
         }
 
         self.players[player_id].change_name(new_name);
-        true
+        Ok(())
     }
 }
 

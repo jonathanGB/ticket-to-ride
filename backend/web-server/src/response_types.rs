@@ -9,9 +9,24 @@ pub enum LoadGameError {
 }
 
 #[derive(Serialize)]
-#[serde(tag = "response", crate = "rocket::serde")]
-pub enum ChangeNameResponse {
-    Unauthorized,
-    AlreadyUsed,
-    Success,
+#[serde(crate = "rocket::serde")]
+pub struct ActionResponse {
+    success: bool,
+    error_message: Option<String>,
+}
+
+impl ActionResponse {
+    pub fn new_success() -> Self {
+        Self {
+            success: true,
+            error_message: None,
+        }
+    }
+
+    pub fn new_failure(error_message: String) -> Self {
+        Self {
+            success: false,
+            error_message: Some(error_message),
+        }
+    }
 }

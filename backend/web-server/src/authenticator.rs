@@ -30,6 +30,7 @@ impl Identifier {
 }
 pub struct Authenticator {
     player_id: usize,
+    game_id: Uuid,
 }
 
 #[derive(Debug)]
@@ -45,7 +46,7 @@ impl Authenticator {
     // Validates the given request.
     // If the request is authenticated, it returns the player's ID.
     // Otherwise, it returns None.
-    pub fn validate_and_get_player_id(cookies: &CookieJar, game_id: &Uuid) -> Option<usize> {
+    pub fn validate_and_get_player_id(cookies: &CookieJar, game_id: Uuid) -> Option<usize> {
         match Self::authentication_outcome(cookies, game_id) {
             Outcome::Success(authenticator) => Some(authenticator.player_id),
             _ => None,
@@ -68,15 +69,20 @@ impl Authenticator {
         self.player_id
     }
 
+    pub fn game_id(&self) -> &Uuid {
+        &self.game_id
+    }
+
     fn authentication_outcome(
         cookies: &CookieJar,
-        game_id: &Uuid,
+        game_id: Uuid,
     ) -> Outcome<Self, AuthenticatorError> {
         if let Some(identifier_cookie) = cookies.get_private(COOKIE_IDENTIFIER_NAME) {
             match identifier_cookie.value().parse::<Identifier>() {
-                Ok(identifier) if &identifier.game_id == game_id => {
+                Ok(identifier) if &identifier.game_id == &game_id => {
                     Outcome::Success(Authenticator {
                         player_id: identifier.player_id,
+                        game_id,
                     })
                 }
                 _ => Outcome::Failure((Status::Unauthorized, AuthenticatorError::InvalidPlayerId)),
@@ -95,7 +101,7 @@ impl<'r> FromRequest<'r> for Authenticator {
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         // The path should be `/game/<game_id>`.
         match req.param::<Uuid>(1) {
-            Some(Ok(game_id)) => Self::authentication_outcome(req.cookies(), &game_id),
+            Some(Ok(game_id)) => Self::authentication_outcome(req.cookies(), game_id),
             _ => Outcome::Failure((Status::NotFound, AuthenticatorError::InvalidUrl)),
         }
     }

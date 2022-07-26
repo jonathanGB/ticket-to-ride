@@ -54,7 +54,7 @@ async fn load_game(
 ) -> Result<NamedFile, LoadGameError> {
     match state.get_mut(&game_id) {
         Some(game_id_and_state) => {
-            if !WriteController::new(game_id_and_state, cookies).load_game(origin) {
+            if !WriteController::load_game(game_id_and_state, cookies, origin) {
                 return Err(LoadGameError::Unauthorized(redirect_to_root()));
             }
 
@@ -68,22 +68,15 @@ async fn load_game(
 }
 
 #[put(
-    "/game/<game_id>/player/name",
+    "/game/<_>/player/name",
     format = "json",
     data = "<change_name_request>"
 )]
 fn change_player_name(
-    game_id: Uuid,
-    cookies: &CookieJar,
-    state: &State<GameIdManagerMapping>,
+    mut write_controller: WriteController,
     change_name_request: Json<ChangeNameRequest>,
-) -> Option<Json<ChangeNameResponse>> {
-    let game_id_and_state = state.get_mut(&game_id)?;
-
-    Some(Json(
-        WriteController::new(game_id_and_state, cookies)
-            .change_player_name(change_name_request.into_inner()),
-    ))
+) -> Json<ActionResponse> {
+    Json(write_controller.change_player_name(change_name_request.into_inner()))
 }
 
 #[post("/create")]
