@@ -68,6 +68,18 @@ pub fn change_player_name(
     Json(write_controller.change_player_name(change_name_request.into_inner()))
 }
 
+#[put(
+    "/game/<_>/player/color",
+    format = "json",
+    data = "<change_color_request>"
+)]
+pub fn change_player_color(
+    mut write_controller: WriteController,
+    change_color_request: Json<ChangeColorRequest>,
+) -> Json<ActionResponse> {
+    Json(write_controller.change_player_color(change_color_request.into_inner()))
+}
+
 #[post("/create")]
 pub fn create_game(state: &State<GameIdManagerMapping>) -> Redirect {
     let game_id = WriteController::create_game(state);

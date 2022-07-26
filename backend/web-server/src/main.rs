@@ -1,4 +1,4 @@
-// Launches a HTTP server, and routes incoming requests to the Controller.
+//! Launches a HTTP server, and routes incoming requests to the Controller.
 
 #[macro_use]
 extern crate rocket;
@@ -24,6 +24,7 @@ fn rocket() -> _ {
         .mount(
             "/",
             routes![
+                change_player_color,
                 change_player_name,
                 create_game,
                 get_game_state,

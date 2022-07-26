@@ -167,6 +167,21 @@ impl<'a> WriteController<'a> {
             Err(e) => ActionResponse::new_failure(e),
         }
     }
+
+    pub fn change_player_color(
+        &mut self,
+        change_color_request: ChangeColorRequest,
+    ) -> ActionResponse {
+        let player_id = self.player_id;
+
+        match self
+            .manager()
+            .change_player_color(player_id, change_color_request.new_color)
+        {
+            Ok(_) => ActionResponse::new_success(),
+            Err(e) => ActionResponse::new_failure(e),
+        }
+    }
 }
 
 #[rocket::async_trait]

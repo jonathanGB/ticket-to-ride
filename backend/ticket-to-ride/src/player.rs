@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
+use strum_macros::{Display, EnumIter};
 
 // Every player starts the game with 45 cards.
 const NUM_OF_CARS: u8 = 45;
@@ -17,8 +17,9 @@ const NUM_OF_CARS: u8 = 45;
 pub type ActionResult = Result<bool, String>;
 
 /// Every player has their own color.
-#[derive(Clone, Copy, Debug, Deserialize, EnumIter, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Display, EnumIter, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
 pub enum PlayerColor {
     Black,
     Blue,

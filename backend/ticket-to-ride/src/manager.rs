@@ -99,13 +99,32 @@ impl Manager {
         for player in &self.players {
             if player.name() == new_name {
                 return Err(format!(
-                    "Cannot change name to already existing `{}`",
+                    "Cannot change name to already existing `{}`.",
                     new_name
                 ));
             }
         }
 
         self.players[player_id].change_name(new_name);
+        Ok(())
+    }
+
+    // TODO: test this.
+    pub fn change_player_color(
+        &mut self,
+        player_id: usize,
+        new_color: PlayerColor,
+    ) -> Result<(), String> {
+        for player in &self.players {
+            if player.color() == new_color {
+                return Err(format!(
+                    "Cannot change color to `{}`, as it is already used.",
+                    new_color
+                ));
+            }
+        }
+
+        self.players[player_id].change_color(new_color);
         Ok(())
     }
 }
