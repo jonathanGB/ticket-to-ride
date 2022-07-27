@@ -12,3 +12,9 @@ pub struct ChangeNameRequest {
 pub struct ChangeColorRequest {
     pub new_color: PlayerColor,
 }
+
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct SetPlayerReadyRequest {
+    pub is_ready: bool,
+}

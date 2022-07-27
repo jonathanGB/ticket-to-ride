@@ -32,6 +32,7 @@ fn rocket() -> _ {
                 load_game,
                 robots,
                 root,
+                set_player_ready,
             ],
         )
         .mount("/static", FileServer::from(STATIC_FILES_PATH))

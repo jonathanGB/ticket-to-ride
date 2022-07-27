@@ -182,6 +182,21 @@ impl<'a> WriteController<'a> {
             Err(e) => ActionResponse::new_failure(e),
         }
     }
+
+    pub fn set_player_ready(
+        &mut self,
+        set_player_ready_request: SetPlayerReadyRequest,
+    ) -> ActionResponse {
+        let player_id = self.player_id;
+
+        match self
+            .manager()
+            .set_ready(player_id, set_player_ready_request.is_ready)
+        {
+            Ok(_) => ActionResponse::new_success(),
+            Err(e) => ActionResponse::new_failure(e),
+        }
+    }
 }
 
 #[rocket::async_trait]

@@ -9,6 +9,7 @@ use smallvec::SmallVec;
 use std::collections::HashSet;
 use strum::IntoEnumIterator;
 
+const MIN_PLAYERS: usize = 2;
 const MAX_PLAYERS: usize = 5;
 
 #[derive(Serialize, Debug, Deserialize, PartialEq)]
@@ -49,7 +50,7 @@ impl Manager {
     }
 
     pub fn add_player(&mut self) -> Option<usize> {
-        if self.num_players() == MAX_PLAYERS {
+        if self.phase != GamePhase::InLobby || self.num_players() == MAX_PLAYERS {
             return None;
         }
 
@@ -96,6 +97,12 @@ impl Manager {
 
     // TODO: test this.
     pub fn change_player_name(&mut self, player_id: usize, new_name: String) -> Result<(), String> {
+        if self.phase != GamePhase::InLobby {
+            return Err(String::from(
+                "Cannot change player's name outside of the lobby phase.",
+            ));
+        }
+
         for player in &self.players {
             if player.name() == new_name {
                 return Err(format!(
@@ -115,6 +122,12 @@ impl Manager {
         player_id: usize,
         new_color: PlayerColor,
     ) -> Result<(), String> {
+        if self.phase != GamePhase::InLobby {
+            return Err(String::from(
+                "Cannot change player's color outside of the lobby phase.",
+            ));
+        }
+
         for player in &self.players {
             if player.color() == new_color {
                 return Err(format!(
@@ -125,6 +138,37 @@ impl Manager {
         }
 
         self.players[player_id].change_color(new_color);
+        Ok(())
+    }
+
+    // TODO: test this.
+    pub fn set_ready(&mut self, player_id: usize, is_ready: bool) -> Result<(), String> {
+        if self.phase != GamePhase::InLobby {
+            return Err(String::from(
+                "Cannot change ready status outside of the lobby phase.",
+            ));
+        }
+
+        self.players[player_id].set_ready(is_ready);
+
+        if self.num_players() >= MIN_PLAYERS && self.players.iter().all(|player| player.ready()) {
+            self.start_game()?;
+        }
+
+        Ok(())
+    }
+
+    fn start_game(&mut self) -> Result<(), String> {
+        let map = Map::new(self.num_players())?;
+        let mut card_dealer = CardDealer::new();
+
+        self.phase = GamePhase::Starting;
+        self.players
+            .iter_mut()
+            .for_each(|player| player.initialize_when_game_starts(&mut card_dealer));
+
+        self.map = Some(map);
+        self.card_dealer = Some(card_dealer);
         Ok(())
     }
 }
@@ -160,6 +204,20 @@ mod tests {
     }
 
     // Tests for `Manager::add_player`.
+
+    #[test]
+    fn manager_add_player_outside_of_in_lobby_phase() {
+        let mut m = Manager::new();
+
+        m.phase = GamePhase::Starting;
+        assert!(m.add_player().is_none());
+
+        m.phase = GamePhase::Playing;
+        assert!(m.add_player().is_none());
+
+        m.phase = GamePhase::InLobby;
+        assert!(m.add_player().is_some());
+    }
 
     #[test]
     fn manager_add_player_unique() {
