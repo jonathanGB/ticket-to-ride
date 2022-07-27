@@ -4,9 +4,11 @@ use crate::{
     player::{Player, PlayerColor},
 };
 
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use strum::IntoEnumIterator;
 
 const MIN_PLAYERS: usize = 2;
@@ -22,12 +24,34 @@ pub enum GamePhase {
     Done,
 }
 
+/// In charge of holding all the state of the game, managing player actions, and transitions amongst players.
+///
+/// This overall acts as a finite-state machine.
 pub struct Manager {
+    /// The current phase of the game, which marks nodes (states) in this finite-state machine.
     phase: GamePhase,
+    /// Keeps track of the current turn, which is incremented every time
+    /// a player finishes their turn.
+    ///
+    /// This is `None` as long as we are either in [`GamePhase::InLobby`],
+    /// or in [`GamePhase::Starting`].
     turn: Option<usize>,
+    /// Holds the [`Map`].
+    /// Only populated once the game is started!
     map: Option<Map>,
+    /// Holds the [`CardDealer`].
+    /// Only opulated once the game is started!
     card_dealer: Option<CardDealer>,
+    /// List of all players.
+    ///
+    /// In the lobby, the player ID simply matches their index in this array.
+    /// However, once we start the game, we shuffle this list, such that the
+    /// order in which players play is random. To help keep track of specific
+    /// players after shuffling, we map their positions in `players_position`.
     players: SmallVec<[Player; MAX_PLAYERS]>,
+    /// Maps a player ID to their position in the `players` array.
+    /// Only populated once the game is started!
+    players_position: HashMap<usize, usize>,
 }
 
 impl Manager {
@@ -38,6 +62,7 @@ impl Manager {
             map: None,
             card_dealer: None,
             players: SmallVec::new(),
+            players_position: HashMap::new(),
         }
     }
 
@@ -47,6 +72,22 @@ impl Manager {
 
     pub fn num_players(&self) -> usize {
         self.players.len()
+    }
+
+    // Only call once the game is started!
+    fn get_player(&self, player_id: usize) -> &Player {
+        self.players_position
+            .get(&player_id)
+            .map(|index| &self.players[*index])
+            .expect("We should never query an invalid player ID, or before we start the game.")
+    }
+
+    // Only call once the game is started!
+    fn get_player_mut(&mut self, player_id: usize) -> &mut Player {
+        self.players_position
+            .get(&player_id)
+            .map(|index| &mut self.players[*index])
+            .expect("We should never query an invalid player ID, or before we start the game.")
     }
 
     pub fn add_player(&mut self) -> Option<usize> {
@@ -163,9 +204,12 @@ impl Manager {
         let mut card_dealer = CardDealer::new();
 
         self.phase = GamePhase::Starting;
-        self.players
-            .iter_mut()
-            .for_each(|player| player.initialize_when_game_starts(&mut card_dealer));
+        self.players.shuffle(&mut thread_rng());
+
+        for (index, player) in self.players.iter_mut().enumerate() {
+            self.players_position.insert(player.id(), index);
+            player.initialize_when_game_starts(&mut card_dealer);
+        }
 
         self.map = Some(map);
         self.card_dealer = Some(card_dealer);
