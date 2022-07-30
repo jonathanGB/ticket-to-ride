@@ -32,6 +32,8 @@ pub struct GameState<'a> {
     players_state: SmallVec<[PlayerState<'a>; MAX_PLAYERS]>,
 }
 
+type ManagerActionResult = Result<(), String>;
+
 /// In charge of holding all the state of the game, managing player actions, and transitions amongst players.
 ///
 /// This overall acts as a finite-state machine.
@@ -157,7 +159,11 @@ impl Manager {
     }
 
     // TODO: test this.
-    pub fn change_player_name(&mut self, player_id: usize, new_name: String) -> Result<(), String> {
+    pub fn change_player_name(
+        &mut self,
+        player_id: usize,
+        new_name: String,
+    ) -> ManagerActionResult {
         if self.phase != GamePhase::InLobby {
             return Err(String::from(
                 "Cannot change player's name outside of the lobby phase.",
@@ -182,7 +188,7 @@ impl Manager {
         &mut self,
         player_id: usize,
         new_color: PlayerColor,
-    ) -> Result<(), String> {
+    ) -> ManagerActionResult {
         if self.phase != GamePhase::InLobby {
             return Err(String::from(
                 "Cannot change player's color outside of the lobby phase.",
@@ -203,7 +209,7 @@ impl Manager {
     }
 
     // TODO: test this.
-    pub fn set_ready(&mut self, player_id: usize, is_ready: bool) -> Result<(), String> {
+    pub fn set_ready(&mut self, player_id: usize, is_ready: bool) -> ManagerActionResult {
         if self.phase != GamePhase::InLobby {
             return Err(String::from(
                 "Cannot change ready status outside of the lobby phase.",
@@ -219,7 +225,7 @@ impl Manager {
         Ok(())
     }
 
-    fn start_game(&mut self) -> Result<(), String> {
+    fn start_game(&mut self) -> ManagerActionResult {
         let map = Map::new(self.num_players())?;
         let mut card_dealer = CardDealer::new();
 
@@ -241,7 +247,7 @@ impl Manager {
         &mut self,
         player_id: usize,
         destination_cards_decisions: SmallVec<[bool; NUM_DRAWN_DESTINATION_CARDS]>,
-    ) -> Result<(), String> {
+    ) -> ManagerActionResult {
         if self.phase != GamePhase::Starting && self.phase != GamePhase::Playing {
             return Err(String::from(
                 "Cannot select destination cards outside of the starting or playing phases.",
