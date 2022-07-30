@@ -101,13 +101,17 @@ macro_rules! destination_card {
     };
 }
 
-// TODO: document.
 #[derive(Serialize)]
+/// State of the [`CardDealer`], which is shared uniformly to all players.
 pub struct CardDealerState<'a> {
-    open_train_card_deck: &'a [Option<TrainColor>],
-    close_train_card_deck_size: usize,
-    discarded_train_card_deck_size: usize,
-    destination_card_deck_size: usize,
+    /// All train cards in the open train card deck.
+    pub open_train_card_deck: &'a [Option<TrainColor>],
+    /// How many cards are left in the close train card deck.
+    pub close_train_card_deck_size: usize,
+    /// How many train cards are discarded.
+    pub discarded_train_card_deck_size: usize,
+    /// How many card are left in the destination card deck.
+    pub destination_card_deck_size: usize,
 }
 
 /// Entity in charge of dealing as well as shuffling destination and train cards.
@@ -524,51 +528,40 @@ impl CardDealer {
                 .any(|card| card.is_some() && card.unwrap().is_not_wild())
     }
 
-    /// Mutable accessor to the open train card deck.
-    ///
-    /// Should only be used for testing!
+    #[cfg(test)]
     pub fn get_mut_open_train_card_deck(
         &mut self,
     ) -> &mut SmallVec<[Option<TrainColor>; NUM_OPEN_TRAIN_CARDS]> {
         &mut self.open_train_card_deck
     }
 
-    /// Accessor to the close train card deck.
-    ///
-    /// Should only be used for testing!
+    #[cfg(test)]
     pub fn get_close_train_card_deck(&self) -> &Vec<TrainColor> {
         &self.close_train_card_deck
     }
 
-    /// Mutable accessor to the close train card deck.
-    ///
-    /// Should only be used for testing!
+    #[cfg(test)]
     pub fn get_mut_close_train_card_deck(&mut self) -> &mut Vec<TrainColor> {
         &mut self.close_train_card_deck
     }
 
-    /// Accessor to the discarded train card deck.
-    ///
-    /// Should only be used for testing!
+    #[cfg(test)]
     pub fn get_discarded_train_card_deck(&self) -> &Vec<TrainColor> {
         &self.discarded_train_card_deck
     }
 
-    /// Accessor to the destination card deck.
-    ///
-    /// Should only be used for testing!
+    #[cfg(test)]
     pub fn get_destination_card_deck(&self) -> &VecDeque<DestinationCard> {
         &self.destination_card_deck
     }
 
-    /// Mutable accessor to the destination card deck.
-    ///
-    /// Should only be used for testing!
+    #[cfg(test)]
     pub fn get_mut_destination_card_deck(&mut self) -> &mut VecDeque<DestinationCard> {
         &mut self.destination_card_deck
     }
 
     // TODO: test this.
+    /// Returns the state of the card dealer, which is uniformly available to all players.
     pub fn get_state(&self) -> CardDealerState {
         CardDealerState {
             open_train_card_deck: &self.open_train_card_deck,
