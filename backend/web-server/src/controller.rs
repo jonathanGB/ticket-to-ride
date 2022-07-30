@@ -108,10 +108,6 @@ impl<'a> WriteController<'a> {
         }
     }
 
-    fn game_id(&self) -> &Uuid {
-        self.game_id_and_manager.key()
-    }
-
     fn manager(&mut self) -> &mut Manager {
         self.game_id_and_manager.value_mut()
     }
