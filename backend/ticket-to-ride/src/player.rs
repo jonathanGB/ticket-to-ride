@@ -12,8 +12,9 @@ use strum_macros::{Display, EnumIter};
 const NUM_OF_CARS: u8 = 45;
 
 /// All actions taken by a player have the same `Result`:
-/// either it succeeded, which we mark by whether the player's turn is over,
-/// or whether it failed, which includes a human-readable error message.
+///
+/// * Either it succeeded, which we mark by whether the player's turn is over.
+/// * Or it failed, which includes a human-readable error message.
 pub type ActionResult = Result<bool, String>;
 
 /// Every player has their own color.

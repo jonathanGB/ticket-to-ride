@@ -1,5 +1,6 @@
 use rocket::response::Redirect;
 use rocket::serde::Serialize;
+use ticket_to_ride::manager::ManagerActionResult;
 
 #[derive(Responder)]
 pub enum LoadGameError {
@@ -16,17 +17,16 @@ pub struct ActionResponse {
 }
 
 impl ActionResponse {
-    pub fn new_success() -> Self {
-        Self {
-            success: true,
-            error_message: None,
-        }
-    }
-
-    pub fn new_failure(error_message: String) -> Self {
-        Self {
-            success: false,
-            error_message: Some(error_message),
+    pub fn new(manager_action_result: ManagerActionResult) -> Self {
+        match manager_action_result {
+            Ok(_) => Self {
+                success: true,
+                error_message: None,
+            },
+            Err(e) => Self {
+                success: false,
+                error_message: Some(e),
+            },
         }
     }
 }

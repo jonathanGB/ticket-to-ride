@@ -32,6 +32,7 @@ pub struct ReadController<'a> {
 }
 
 impl<'a> ReadController<'a> {
+    #[inline]
     pub fn new(
         game_id_and_manager: Ref<'a, Uuid, Manager>,
         player_id: usize,
@@ -42,10 +43,12 @@ impl<'a> ReadController<'a> {
         }
     }
 
+    #[inline]
     fn manager(&self) -> &Manager {
         self.game_id_and_manager.value()
     }
 
+    #[inline]
     pub fn get_game_state(&self) -> GameState {
         self.manager().get_state(self.player_id)
     }
@@ -98,6 +101,7 @@ pub struct WriteController<'a> {
 }
 
 impl<'a> WriteController<'a> {
+    #[inline]
     pub fn new(
         game_id_and_manager: RefMut<'a, Uuid, Manager>,
         player_id: usize,
@@ -108,6 +112,7 @@ impl<'a> WriteController<'a> {
         }
     }
 
+    #[inline]
     fn manager(&mut self) -> &mut Manager {
         self.game_id_and_manager.value_mut()
     }
@@ -152,61 +157,53 @@ impl<'a> WriteController<'a> {
         true
     }
 
+    #[inline]
     pub fn change_player_name(&mut self, change_name_request: ChangeNameRequest) -> ActionResponse {
         let player_id = self.player_id;
 
-        match self
-            .manager()
-            .change_player_name(player_id, change_name_request.new_name)
-        {
-            Ok(_) => ActionResponse::new_success(),
-            Err(e) => ActionResponse::new_failure(e),
-        }
+        ActionResponse::new(
+            self.manager()
+                .change_player_name(player_id, change_name_request.new_name),
+        )
     }
 
+    #[inline]
     pub fn change_player_color(
         &mut self,
         change_color_request: ChangeColorRequest,
     ) -> ActionResponse {
         let player_id = self.player_id;
 
-        match self
-            .manager()
-            .change_player_color(player_id, change_color_request.new_color)
-        {
-            Ok(_) => ActionResponse::new_success(),
-            Err(e) => ActionResponse::new_failure(e),
-        }
+        ActionResponse::new(
+            self.manager()
+                .change_player_color(player_id, change_color_request.new_color),
+        )
     }
 
+    #[inline]
     pub fn set_player_ready(
         &mut self,
         set_player_ready_request: SetPlayerReadyRequest,
     ) -> ActionResponse {
         let player_id = self.player_id;
 
-        match self
-            .manager()
-            .set_ready(player_id, set_player_ready_request.is_ready)
-        {
-            Ok(_) => ActionResponse::new_success(),
-            Err(e) => ActionResponse::new_failure(e),
-        }
+        ActionResponse::new(
+            self.manager()
+                .set_ready(player_id, set_player_ready_request.is_ready),
+        )
     }
 
+    #[inline]
     pub fn select_destination_cards(
         &mut self,
         select_destination_cards_request: SelectDestinationCardsRequest,
     ) -> ActionResponse {
         let player_id = self.player_id;
 
-        match self.manager().select_destination_cards(
+        ActionResponse::new(self.manager().select_destination_cards(
             player_id,
             select_destination_cards_request.destination_cards_decisions,
-        ) {
-            Ok(_) => ActionResponse::new_success(),
-            Err(e) => ActionResponse::new_failure(e),
-        }
+        ))
     }
 }
 

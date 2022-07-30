@@ -32,7 +32,11 @@ pub struct GameState<'a> {
     players_state: SmallVec<[PlayerState<'a>; MAX_PLAYERS]>,
 }
 
-type ManagerActionResult = Result<(), String>;
+/// All actions taken by a player have the same `Result`:
+///
+/// * Either it succeeded, which we mark with an empty tuple.
+/// * Or it failed, which includes a human-readable error message.
+pub type ManagerActionResult = Result<(), String>;
 
 /// In charge of holding all the state of the game, managing player actions, and transitions amongst players.
 ///
