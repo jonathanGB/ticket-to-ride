@@ -1,5 +1,5 @@
 use crate::{
-    card::{CardDealer, CardDealerState},
+    card::{CardDealer, CardDealerState, NUM_DRAWN_DESTINATION_CARDS},
     map::Map,
     player::{Player, PlayerColor, PlayerState},
 };
@@ -240,7 +240,7 @@ impl Manager {
     pub fn select_destination_cards(
         &mut self,
         player_id: usize,
-        destination_cards_decisions: SmallVec<[bool; 3]>,
+        destination_cards_decisions: SmallVec<[bool; NUM_DRAWN_DESTINATION_CARDS]>,
     ) -> Result<(), String> {
         if self.phase != GamePhase::Starting && self.phase != GamePhase::Playing {
             return Err(String::from(

@@ -1,6 +1,6 @@
 use rocket::serde::Deserialize;
 use smallvec::SmallVec;
-use ticket_to_ride::player::PlayerColor;
+use ticket_to_ride::{card::NUM_DRAWN_DESTINATION_CARDS, player::PlayerColor};
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -23,5 +23,5 @@ pub struct SetPlayerReadyRequest {
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
 pub struct SelectDestinationCardsRequest {
-    pub destination_cards_decisions: SmallVec<[bool; 3]>,
+    pub destination_cards_decisions: SmallVec<[bool; NUM_DRAWN_DESTINATION_CARDS]>,
 }

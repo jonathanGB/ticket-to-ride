@@ -1,4 +1,4 @@
-use crate::card::{CardDealer, DestinationCard, TrainColor};
+use crate::card::{CardDealer, DestinationCard, TrainColor, NUM_DRAWN_DESTINATION_CARDS};
 use crate::city::CityToCity;
 use crate::map::{ClaimedRoute, Map};
 
@@ -153,7 +153,7 @@ pub struct PrivatePlayerState {
     /// After having drawn destination cards, we place them in this "pending" state.
     /// The player will subsequently have to select which ones they want to keep, which are then
     /// moved to the [`PrivatePlayerState::selected_destination_cards`].
-    pub pending_destination_cards: SmallVec<[DestinationCard; 3]>,
+    pub pending_destination_cards: SmallVec<[DestinationCard; NUM_DRAWN_DESTINATION_CARDS]>,
     /// List of destination cards that a player has selected to fulfill.
     /// These cards, when initially drawn, were first moved to the _pending_ list
     /// ([`PrivatePlayerState::pending_destination_cards`]), until they made
@@ -652,7 +652,7 @@ impl Player {
     /// is selected.
     pub fn select_destination_cards(
         &mut self,
-        destination_cards_decisions: SmallVec<[bool; 3]>,
+        destination_cards_decisions: SmallVec<[bool; NUM_DRAWN_DESTINATION_CARDS]>,
         turn: Option<usize>,
         card_dealer: &mut CardDealer,
     ) -> ActionResult {
@@ -834,7 +834,10 @@ mod tests {
         let sum_train_cards: u8 = player.private.train_cards.values().sum();
         assert_eq!(sum_train_cards, 4);
         assert_eq!(player.public.num_train_cards, 4);
-        assert_eq!(player.private.pending_destination_cards.len(), 3);
+        assert_eq!(
+            player.private.pending_destination_cards.len(),
+            NUM_DRAWN_DESTINATION_CARDS
+        );
         assert!(player.private.selected_destination_cards.is_empty());
     }
 
