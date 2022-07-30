@@ -1,7 +1,7 @@
 use crate::{
-    card::CardDealer,
+    card::{CardDealer, CardDealerState},
     map::Map,
-    player::{Player, PlayerColor},
+    player::{Player, PlayerColor, PlayerState},
 };
 
 use rand::seq::SliceRandom;
@@ -14,7 +14,8 @@ use strum::IntoEnumIterator;
 const MIN_PLAYERS: usize = 2;
 const MAX_PLAYERS: usize = 5;
 
-#[derive(Serialize, Debug, Deserialize, PartialEq)]
+// TODO: remove unnecessary deserialize trait implementation.
+#[derive(Clone, Copy, Serialize, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum GamePhase {
     InLobby,
@@ -22,6 +23,14 @@ pub enum GamePhase {
     Playing,
     LastTurn,
     Done,
+}
+
+#[derive(Serialize)]
+pub struct GameState<'a> {
+    phase: GamePhase,
+    turn: Option<usize>,
+    card_dealer_state: Option<CardDealerState<'a>>,
+    players_state: SmallVec<[PlayerState<'a>; MAX_PLAYERS]>,
 }
 
 /// In charge of holding all the state of the game, managing player actions, and transitions amongst players.
@@ -40,7 +49,7 @@ pub struct Manager {
     /// Only populated once the game is started!
     map: Option<Map>,
     /// Holds the [`CardDealer`].
-    /// Only opulated once the game is started!
+    /// Only populated once the game is started!
     card_dealer: Option<CardDealer>,
     /// List of all players.
     ///
@@ -66,8 +75,20 @@ impl Manager {
         }
     }
 
-    pub fn get_state(&self, player_id: usize) {
-        unimplemented!()
+    pub fn get_state(&self, player_id: usize) -> GameState {
+        GameState {
+            phase: self.phase,
+            turn: self.turn,
+            card_dealer_state: self
+                .card_dealer
+                .as_ref()
+                .map(|card_dealer| card_dealer.get_state()),
+            players_state: self
+                .players
+                .iter()
+                .map(|player| player.get_player_state(player_id))
+                .collect(),
+        }
     }
 
     pub fn num_players(&self) -> usize {

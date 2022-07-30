@@ -1,8 +1,9 @@
-use crate::controller::{GameIdManagerMapping, WriteController};
+use crate::controller::{GameIdManagerMapping, ReadController, WriteController};
 use crate::request_types::*;
 use crate::response_types::*;
 
-use rocket::serde::{json::Json, Serialize};
+use rocket::response::content::RawJson;
+use rocket::serde::json::Json;
 use rocket::{
     fs::NamedFile,
     http::{uri::Origin, CookieJar},
@@ -99,21 +100,10 @@ pub fn create_game(state: &State<GameIdManagerMapping>) -> Redirect {
     Redirect::to(uri!(load_game(game_id)))
 }
 
-#[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
-pub struct Foo {
-    pub foo: usize,
-    pub bar: bool,
-    pub game_id: Uuid,
-    pub phase: String,
-}
-
-#[get("/game/<game_id>/state")]
-pub fn get_game_state(game_id: Uuid, cookies: &CookieJar) -> Json<Foo> {
-    Json(Foo {
-        foo: 5,
-        bar: true,
-        game_id,
-        phase: String::from("in_lobby"),
-    })
+#[get("/game/<_>/state")]
+pub fn get_game_state(read_controller: ReadController) -> RawJson<String> {
+    RawJson(
+        serde_json::to_string(&read_controller.get_game_state())
+            .expect("Game state should never fail serializing as JSON"),
+    )
 }

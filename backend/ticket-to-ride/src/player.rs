@@ -34,7 +34,8 @@ pub enum PlayerColor {
 /// Represents all the actions that a player can take.
 /// Used internally to keep track of whether an action is allowed,
 /// based on other actions taken by the player in a given turn.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PlayerAction {
     /// The first and only player action per turn.
     ClaimedRoute,
@@ -59,7 +60,7 @@ pub enum PlayerAction {
     SelectedDestinationCards,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 /// Keeps track of actions taken at a given turn.
 pub struct TurnActions {
     /// Initially, `turn` is None. This denotes the initial draw that happens concurrently for all players,
@@ -85,7 +86,7 @@ impl TurnActions {
 }
 
 /// All the information about a player's current state, returned by [`Player::get_player_state`].
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct PlayerState<'a> {
     /// Encapsulates information that is visible to all players. Always populated!
     pub public_player_state: &'a PublicPlayerState,
@@ -94,7 +95,7 @@ pub struct PlayerState<'a> {
     pub private_player_state: Option<&'a PrivatePlayerState>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 /// Information about a player's state that is visible to all players.
 pub struct PublicPlayerState {
     /// Unique to each player in the game.
@@ -143,7 +144,7 @@ impl PublicPlayerState {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 /// Information about a player's state that is only visible to that player.
 pub struct PrivatePlayerState {
     /// Maps how many of a train color a player has.

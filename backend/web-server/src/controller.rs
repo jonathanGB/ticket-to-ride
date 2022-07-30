@@ -8,7 +8,7 @@ use rocket::request::{FromRequest, Outcome, Request};
 use rocket::State;
 use uuid::Uuid;
 
-use ticket_to_ride::manager::Manager;
+use ticket_to_ride::manager::{GameState, Manager};
 
 pub type GameIdManagerMapping = DashMap<Uuid, Manager>;
 
@@ -42,12 +42,12 @@ impl<'a> ReadController<'a> {
         }
     }
 
-    fn game_id(&self) -> &Uuid {
-        self.game_id_and_manager.key()
-    }
-
     fn manager(&self) -> &Manager {
         self.game_id_and_manager.value()
+    }
+
+    pub fn get_game_state(&self) -> GameState {
+        self.manager().get_state(self.player_id)
     }
 }
 

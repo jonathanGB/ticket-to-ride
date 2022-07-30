@@ -80,7 +80,7 @@ impl TrainColor {
 }
 
 /// Encapsulates information about a destination card.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct DestinationCard {
     /// The two cities that must be connected to fulfill the destination card.
     pub destination: CityToCity,
@@ -97,6 +97,15 @@ macro_rules! destination_card {
             points: $points,
         }
     };
+}
+
+// TODO: document.
+#[derive(Serialize)]
+pub struct CardDealerState<'a> {
+    open_train_card_deck: &'a [Option<TrainColor>],
+    close_train_card_deck_size: usize,
+    discarded_train_card_deck_size: usize,
+    destination_card_deck_size: usize,
 }
 
 /// Entity in charge of dealing as well as shuffling destination and train cards.
@@ -555,6 +564,16 @@ impl CardDealer {
     /// Should only be used for testing!
     pub fn get_mut_destination_card_deck(&mut self) -> &mut VecDeque<DestinationCard> {
         &mut self.destination_card_deck
+    }
+
+    // TODO: test this.
+    pub fn get_state(&self) -> CardDealerState {
+        CardDealerState {
+            open_train_card_deck: &self.open_train_card_deck,
+            close_train_card_deck_size: self.close_train_card_deck.len(),
+            discarded_train_card_deck_size: self.discarded_train_card_deck.len(),
+            destination_card_deck_size: self.destination_card_deck.len(),
+        }
     }
 }
 

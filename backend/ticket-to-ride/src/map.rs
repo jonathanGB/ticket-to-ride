@@ -4,6 +4,7 @@ use crate::city::{City, CityToCity};
 
 use array_init::array_init;
 use atom::AtomSetOnce;
+use serde::Serialize;
 use smallvec::SmallVec;
 use std::cmp::max;
 use std::collections::{BTreeMap, HashSet, VecDeque};
@@ -89,7 +90,7 @@ macro_rules! parallel_routes {
 }
 
 /// Holds the information about a route successfully claimed by a player.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct ClaimedRoute {
     /// Which two adjacent cities are part of the claimed route.
     pub route: CityToCity,
