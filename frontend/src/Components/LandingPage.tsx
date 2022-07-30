@@ -1,5 +1,6 @@
 import React from 'react';
 import '../CSS/LandingPage.css';
+import TrainAnimation from './TrainAnimation';
 
 class LandingPage extends React.Component {
   constructor(props: {} | Readonly<{}>) {
@@ -15,10 +16,7 @@ class LandingPage extends React.Component {
         </form>
       </div>
 
-      <div className='train'>
-        <div className='background'>
-        </div>
-      </div>
+    <TrainAnimation/>
     </div>
   }
 };

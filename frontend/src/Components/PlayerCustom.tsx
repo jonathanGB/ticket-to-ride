@@ -2,7 +2,7 @@ import React from 'react';
 import '../CSS/PlayerCustom.css';
 import PlayerColor from '../PlayerColorEnum'
 
-class PlayerCustom extends React.Component<{name: string, color?: PlayerColor}, {}> {
+class PlayerCustom extends React.Component<{name?: string, color?: PlayerColor, input?: JSX.Element}, {}> {
   constructor(props: any) {
     super(props);
   }
@@ -15,9 +15,14 @@ class PlayerCustom extends React.Component<{name: string, color?: PlayerColor}, 
     else{
       className = 'playerColor-default';
     }
-    console.log(className);
-    return <div className={className} id="playerColor">
-      <h3>{this.props.name} </h3>
+
+    if(this.props.input){
+      return <div className={className} id="playerCustomSelf">
+      <div>{this.props.input} </div>
+    </div>
+    }
+    return <div className={className} id="playerCustomOther">
+      <div>{this.props.name} </div>
     </div>
   }
 };

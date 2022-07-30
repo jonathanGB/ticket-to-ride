@@ -1,6 +1,31 @@
-#playerColor{
+#playerCustomSelf{
     border-style: double;
     border-radius: 1rem;
+    width: 20vw;
+    height: 20vh;
+    text-align: center;
+    margin-left: 5vw;
+    margin-right: 5vw;
+    margin-bottom: 5vh;
+}
+#playerCustomOther{
+    border-style: double;
+    border-radius: 1rem;
+    width: 10vw;
+    height: 10vh;
+    text-align: center;
+    margin-left: 5vw;
+    margin-right: 5vw;
+    margin-bottom: 5vh;
+}
+h3 {
+    color: antiquewhite;
+}
+input {
+    background-color: #81A6D8;
+    border-color: #81A6D8;
+    box-shadow: none;
+    border-style: none;
 }
 .playerColor-default{
     background-color: #81A6D8;

@@ -29,22 +29,6 @@ form {
   justify-content: center;
 }
 
-.background {
-  position: absolute;
-  opacity: 0.25;
-  background: transparent url("../media/train.png") repeat-x scroll 0% 0%;
-  height: 100vh;
-  width: 300vw;
-  animation: slide 10s linear infinite;
-  animation-direction: reverse;
-}
-
-.train {
-  width: 100vw;
-  height: 256px;
-  overflow: hidden;
-}
-
 h1 {
   font-size: 10rem;
   margin: 0rem;
@@ -69,14 +53,4 @@ h1 {
 
 .create-button:hover {
   background: linear-gradient(to top right, #2D537A 15%, #3A689B 50%, #2D537A 85%);
-}
-
-@keyframes slide {
-  0% {
-    transform: translate3d(0, 0, 0);
-  }
-
-  100% {
-    transform: translate3d(-1000px, 0, 0);
-  }
 }

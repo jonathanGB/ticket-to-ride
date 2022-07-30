@@ -10,7 +10,6 @@ class ColorPicker extends React.Component<{selfColor?: PlayerColor, onChange: an
   render() {
    
    return <div className='ColorPicker-header'>
-        <p>Color</p>
         <input className="color" id='red' onClick={this.props.onChange} value ={PlayerColor.Red}/>
         <input className="color" id='orange' onClick={this.props.onChange} value ={PlayerColor.Orange}/>
         <input className="color" id='yellow' onClick={this.props.onChange} value ={PlayerColor.Yellow}/>
