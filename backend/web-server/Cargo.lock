@@ -1551,6 +1551,7 @@ dependencies = [
  "parse-display",
  "rocket",
  "serde_json",
+ "smallvec",
  "ticket-to-ride",
  "uuid",
 ]

@@ -193,6 +193,21 @@ impl<'a> WriteController<'a> {
             Err(e) => ActionResponse::new_failure(e),
         }
     }
+
+    pub fn select_destination_cards(
+        &mut self,
+        select_destination_cards_request: SelectDestinationCardsRequest,
+    ) -> ActionResponse {
+        let player_id = self.player_id;
+
+        match self.manager().select_destination_cards(
+            player_id,
+            select_destination_cards_request.destination_cards_decisions,
+        ) {
+            Ok(_) => ActionResponse::new_success(),
+            Err(e) => ActionResponse::new_failure(e),
+        }
+    }
 }
 
 #[rocket::async_trait]

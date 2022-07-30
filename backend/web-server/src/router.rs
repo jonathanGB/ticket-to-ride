@@ -35,6 +35,13 @@ pub async fn robots() -> std::io::Result<NamedFile> {
     NamedFile::open(Path::new(BUILD_FILES_PATH).join("robots.txt")).await
 }
 
+#[post("/create")]
+pub fn create_game(state: &State<GameIdManagerMapping>) -> Redirect {
+    let game_id = WriteController::create_game(state);
+
+    Redirect::to(uri!(load_game(game_id)))
+}
+
 #[get("/game/<game_id>")]
 pub async fn load_game(
     game_id: Uuid,
@@ -93,11 +100,16 @@ pub fn set_player_ready(
     Json(write_controller.set_player_ready(set_player_ready_request.into_inner()))
 }
 
-#[post("/create")]
-pub fn create_game(state: &State<GameIdManagerMapping>) -> Redirect {
-    let game_id = WriteController::create_game(state);
-
-    Redirect::to(uri!(load_game(game_id)))
+#[put(
+    "/game/<_>/player/select_destination_cards",
+    format = "json",
+    data = "<select_destination_cards_request>"
+)]
+pub fn select_destination_cards(
+    mut write_controller: WriteController,
+    select_destination_cards_request: Json<SelectDestinationCardsRequest>,
+) -> Json<ActionResponse> {
+    Json(write_controller.select_destination_cards(select_destination_cards_request.into_inner()))
 }
 
 #[get("/game/<_>/state")]

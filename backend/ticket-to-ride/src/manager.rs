@@ -61,6 +61,14 @@ pub struct Manager {
     /// Maps a player ID to their position in the `players` array.
     /// Only populated once the game is started!
     players_position: HashMap<usize, usize>,
+    /// Only relevant in the [`GamePhase::Starting`].
+    ///
+    /// Keeps track of the number of players that have selected their initial set of
+    /// destination cards.
+    ///
+    /// Once that number equals the number of players, we are ready to start the turn-based
+    /// game -- and transition to the [`GamePhase::Playing`].
+    num_players_selected_initial_destination_cards: usize,
 }
 
 impl Manager {
@@ -72,6 +80,7 @@ impl Manager {
             card_dealer: None,
             players: SmallVec::new(),
             players_position: HashMap::new(),
+            num_players_selected_initial_destination_cards: 0,
         }
     }
 
@@ -95,20 +104,11 @@ impl Manager {
         self.players.len()
     }
 
-    // Only call once the game is started!
-    fn get_player(&self, player_id: usize) -> &Player {
+    #[inline]
+    fn get_player_index(&self, player_id: usize) -> Option<usize> {
         self.players_position
             .get(&player_id)
-            .map(|index| &self.players[*index])
-            .expect("We should never query an invalid player ID, or before we start the game.")
-    }
-
-    // Only call once the game is started!
-    fn get_player_mut(&mut self, player_id: usize) -> &mut Player {
-        self.players_position
-            .get(&player_id)
-            .map(|index| &mut self.players[*index])
-            .expect("We should never query an invalid player ID, or before we start the game.")
+            .map(|player_id| *player_id)
     }
 
     pub fn add_player(&mut self) -> Option<usize> {
@@ -234,6 +234,37 @@ impl Manager {
 
         self.map = Some(map);
         self.card_dealer = Some(card_dealer);
+        Ok(())
+    }
+
+    // TODO: test this.
+    pub fn select_destination_cards(
+        &mut self,
+        player_id: usize,
+        destination_cards_decisions: SmallVec<[bool; 3]>,
+    ) -> Result<(), String> {
+        if self.phase != GamePhase::Starting && self.phase != GamePhase::Playing {
+            return Err(String::from(
+                "Cannot select destination cards outside of the starting or playing phases.",
+            ));
+        }
+
+        let player_index = self.get_player_index(player_id).unwrap();
+        self.players[player_index].select_destination_cards(
+            destination_cards_decisions,
+            self.turn,
+            self.card_dealer.as_mut().unwrap(),
+        )?;
+
+        if self.phase == GamePhase::Starting {
+            self.num_players_selected_initial_destination_cards += 1;
+
+            if self.num_players_selected_initial_destination_cards == self.num_players() {
+                self.phase = GamePhase::Playing;
+                self.turn = Some(0);
+            }
+        }
+
         Ok(())
     }
 }

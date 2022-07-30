@@ -32,6 +32,7 @@ fn rocket() -> _ {
                 load_game,
                 robots,
                 root,
+                select_destination_cards,
                 set_player_ready,
             ],
         )
