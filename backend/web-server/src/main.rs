@@ -5,7 +5,6 @@ extern crate rocket;
 
 mod authenticator;
 mod controller;
-mod model;
 mod request_types;
 mod response_types;
 mod router;
