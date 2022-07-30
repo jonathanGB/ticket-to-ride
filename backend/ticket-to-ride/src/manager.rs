@@ -6,7 +6,7 @@ use crate::{
 
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use smallvec::SmallVec;
 use std::collections::{HashMap, HashSet};
 use strum::IntoEnumIterator;
@@ -14,8 +14,7 @@ use strum::IntoEnumIterator;
 const MIN_PLAYERS: usize = 2;
 const MAX_PLAYERS: usize = 5;
 
-// TODO: remove unnecessary deserialize trait implementation.
-#[derive(Clone, Copy, Serialize, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Serialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum GamePhase {
     InLobby,
@@ -278,25 +277,6 @@ mod tests {
         assert_eq!(serde_json::to_string(&GamePhase::InLobby)?, r#""in_lobby""#);
         assert_eq!(serde_json::to_string(&GamePhase::Playing)?, r#""playing""#);
         Ok(())
-    }
-
-    #[test]
-    fn json_to_game_phase() -> serde_json::Result<()> {
-        assert_eq!(
-            serde_json::from_str::<GamePhase>(r#""last_turn""#)?,
-            GamePhase::LastTurn
-        );
-        assert_eq!(
-            serde_json::from_str::<GamePhase>(r#""done""#)?,
-            GamePhase::Done
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn invalid_json_to_game_phase() {
-        assert!(serde_json::from_str::<GamePhase>(r#""not_started""#).is_err());
     }
 
     // Tests for `Manager::add_player`.
