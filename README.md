@@ -17,7 +17,11 @@ $ npm run build
 2. Run the web-server.
 ```bash
 $ cd backend/web-server
+
+# To run server in debug mode.
 $ cargo run
+# To run server in release mode.
+$ cargo run --release
 ```
 
 By default, the server will run at [http://localhost:8000](http://localhost:8000).
