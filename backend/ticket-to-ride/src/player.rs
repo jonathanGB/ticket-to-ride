@@ -38,21 +38,27 @@ pub enum PlayerColor {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PlayerAction {
+    /// # Cardinality
     /// The first and only player action per turn.
     ClaimedRoute,
+    /// # Cardinality
     /// The first and only player action per turn.
     DrewOpenWildTrainCard,
+    /// # Cardinality
     /// The first or second of two player actions per turn.
     /// Must be followed by [`PlayerAction::DrewOpenNonWildTrainCard`], or
     /// [`PlayerAction::DrewCloseTrainCard`]
     DrewOpenNonWildTrainCard,
+    /// # Cardinality
     /// The first or second of two player actions per turn.
     /// Must be followed by [`PlayerAction::DrewOpenNonWildTrainCard`], or
     /// [`PlayerAction::DrewCloseTrainCard`].
     DrewCloseTrainCard,
+    /// # Cardinality
     /// The first action of two player actions per turn.
     /// Must be followed by [`PlayerAction::SelectedDestinationCards`].
     DrewDestinationCards,
+    /// # Cardinality
     /// The second action of two player actions per turn.
     /// Must be preceded by [`PlayerAction::DrewDestinationCards`].
     ///
@@ -638,14 +644,15 @@ impl Player {
     /// [`Player::draw_destination_cards`].
     ///
     /// Returns an `Err` if either:
-    ///   * The given `destination_cards_decisions` don't have the same length as the pending set.
+    ///   * The given `destination_cards_decisions` doesn't have the same length as the pending set.
     ///   * Fewer destination cards are selected than the minimum required. Specifically:
     ///     * On the initial draw (which is denoted via a `turn` set to `None`), at least two
     ///       out of three must be selected.
     ///     * Otherwise, at least one card must be selected.
     ///
     /// Otherwise, moves the selected destination cards from *pending* to *selected*, clears the
-    /// *pending* list, and returns `Ok(true)` to denote that the player's turn is over.
+    /// *pending* list, and returns `Ok(true)` to denote that the player's turn is over. The non-selected
+    /// cards, if any, are added to the bottom of the destination card deck.
     ///
     /// The caller shares the selection decision via an array of booleans. As its size must
     /// match the size of the *pending* list, and both lists are ordered, we can map them 1:1

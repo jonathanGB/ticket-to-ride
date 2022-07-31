@@ -102,7 +102,6 @@ pub struct ClaimedRoute {
 
 /// The authoritative state of the map, per game.
 /// This can be mutated as players claim routes throughout the game.
-/// Not thread-safe!
 pub struct Map {
     /// Maps the concept of two cities being adjacent to the underlying parallel routes between the two.
     all_parallel_routes: BTreeMap<CityToCity, ParallelRoutes>,

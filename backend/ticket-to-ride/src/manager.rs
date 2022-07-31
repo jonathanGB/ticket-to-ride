@@ -16,23 +16,57 @@ const MAX_PLAYERS: usize = 5;
 
 #[derive(Clone, Copy, Serialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
+/// Phases of the games, which act as states in the game's finite-state machine.
 pub enum GamePhase {
+    /// Initial phase of the game: when players are joining the lobby, before the game has started.
+    ///
+    /// Players can join the game, change their name and color, and mark themselves as ready.
+    ///
+    /// Once all players are ready, we move to the next phase.
     InLobby,
+    /// When the game starts, players concurrently select their initial set of
+    /// [`crate::card::DestinationCard`]s.
+    ///
+    /// Once all have done so, we move to the turn-based game ([`GamePhase::Playing`]).
     Starting,
+    /// The main phase of the game.
+    ///
+    /// Denotes the main turn-based game, up until when we transition to each player's last turn.
     Playing,
+    /// When a player is left with less than three trains, every player has one left turn left.
+    ///
+    /// This last turn is denoted by this special phase.
     LastTurn,
+    /// When each player has played their last turn.
+    ///
+    /// No actions can be taken at this point.
     Done,
 }
 
 #[derive(Serialize)]
+/// All the information about a game's current state, returned by [`Manager::get_state`].
 pub struct GameState<'a> {
-    phase: GamePhase,
-    turn: Option<usize>,
-    card_dealer_state: Option<CardDealerState<'a>>,
-    players_state: SmallVec<[PlayerState<'a>; MAX_PLAYERS]>,
+    /// The phase of the game.
+    pub phase: GamePhase,
+    /// Which player's turn it is, which maps to an index in [`GameState::players_state`] (modulo the number of players).
+    ///
+    /// Initially, this is `None`. This denotes the initial draw that happens concurrently for all players,
+    /// before turns have started.
+    ///
+    /// When we start the turn-based game, then `turn` is set to 0, and increments after each turn.
+    pub turn: Option<usize>,
+    /// Public information about the decks of train cards and destination cards.
+    ///
+    /// Until the game has started, this is `None`.
+    pub card_dealer_state: Option<CardDealerState<'a>>,
+    /// Information about all the players in the game.
+    ///
+    /// This only contains public information about them, except for requests coming from player _A_,
+    /// which also holds private information about _A_ (and only _A_).
+    pub players_state: SmallVec<[PlayerState<'a>; MAX_PLAYERS]>,
 }
 
-/// All actions taken by a player have the same `Result`:
+/// All actions taken by a manager have the same `Result`:
 ///
 /// * Either it succeeded, which we mark with an empty tuple.
 /// * Or it failed, which includes a human-readable error message.
@@ -77,6 +111,7 @@ pub struct Manager {
 }
 
 impl Manager {
+    /// Creates a new [`Manager`] in the [`GamePhase::InLobby`].
     pub fn new() -> Self {
         Self {
             phase: GamePhase::InLobby,
@@ -89,6 +124,11 @@ impl Manager {
         }
     }
 
+    /// Returns the game's state, from the perspective of a given player.
+    ///
+    /// This said perspective is important, because a given player should only be
+    /// able to know about the public information of other players, but should know
+    /// private information about themselves (e.g. which train cards they have).
     pub fn get_state(&self, player_id: usize) -> GameState {
         GameState {
             phase: self.phase,
@@ -105,7 +145,7 @@ impl Manager {
         }
     }
 
-    pub fn num_players(&self) -> usize {
+    fn num_players(&self) -> usize {
         self.players.len()
     }
 
@@ -116,6 +156,13 @@ impl Manager {
             .map(|player_id| *player_id)
     }
 
+    /// Creates a new [`Player`] (with a unique name and color),
+    /// and adds it to the list of players for the current game.
+    ///
+    /// Returns `None` if we are not in [`GamePhase::InLobby`], or if we have reached the maximum
+    /// of allowed players.
+    ///
+    /// Otherwise, returns the ID of the new player.
     pub fn add_player(&mut self) -> Option<usize> {
         if self.phase != GamePhase::InLobby || self.num_players() == MAX_PLAYERS {
             return None;
@@ -149,8 +196,8 @@ impl Manager {
         let used_player_names: HashSet<&str> =
             self.players.iter().map(|player| player.name()).collect();
 
-        for i in 1..=5 {
-            let player_name = format!("Player {:01$}", player_id, i);
+        for id_length in 1..=MAX_PLAYERS {
+            let player_name = format!("Player {:01$}", player_id, id_length);
             if !used_player_names.contains(&*player_name) {
                 return player_name;
             }
@@ -163,6 +210,13 @@ impl Manager {
     }
 
     // TODO: test this.
+    /// Changes the given player's name.
+    ///
+    /// Returns an `Err` if either:
+    ///   * We are not in [`GamePhase::InLobby`].
+    ///   * A player already has the same name.
+    ///
+    /// Otherwise, returns `Ok(())`.
     pub fn change_player_name(
         &mut self,
         player_id: usize,
@@ -188,6 +242,13 @@ impl Manager {
     }
 
     // TODO: test this.
+    /// Changes the given player's color.
+    ///
+    /// Returns an `Err` if either:
+    ///   * We are not in [`GamePhase::InLobby`].
+    ///   * A player already has the same color.
+    ///
+    /// Otherwise, returns `Ok(())`.
     pub fn change_player_color(
         &mut self,
         player_id: usize,
@@ -213,6 +274,17 @@ impl Manager {
     }
 
     // TODO: test this.
+    /// Changes the given player's _ready_ status (to `true` or `false`).
+    ///
+    /// Returns an `Err` if we are not in [`GamePhase::InLobby`].
+    ///
+    /// Otherwise, returns `Ok(())`.
+    ///
+    /// If and only if all players are ready, then we start the game, which entails:
+    ///   * Creating a [`Map`] and a [`CardDealer`].
+    ///   * Transitioning to [`GamePhase::Starting`].
+    ///   * Drawing the initial set of train and destination cards for each player.
+    ///   * Shuffling the order of players.
     pub fn set_ready(&mut self, player_id: usize, is_ready: bool) -> ManagerActionResult {
         if self.phase != GamePhase::InLobby {
             return Err(String::from(
@@ -247,14 +319,39 @@ impl Manager {
     }
 
     // TODO: test this.
+    #[inline]
+    fn game_started(&self) -> bool {
+        self.phase == GamePhase::Starting || self.turn_based_game_started()
+    }
+
+    // TODO: test this.
+    #[inline]
+    fn turn_based_game_started(&self) -> bool {
+        self.phase == GamePhase::Playing || self.phase == GamePhase::LastTurn
+    }
+
+    // TODO: test this.
+    /// Allows a given player to select from the set of destination cards --
+    /// which they will try to fulfill.
+    ///
+    /// Returns an `Err` if either:
+    ///   * We are not in [`GamePhase::Starting`], [`GamePhase::Playing`], nor [`GamePhase::LastTurn`].
+    ///   * [`Player::select_destination_cards`] failed.
+    ///
+    /// Otherwise, returns `Ok(())`.
+    ///
+    /// If this selection happens during [`GamePhase::Starting`], we check whether all players have selected
+    /// their destination cards. If that is the case, then we:
+    ///   * Transition to [`GamePhase::Playing`].
+    ///   * Set the turn to 0.
     pub fn select_destination_cards(
         &mut self,
         player_id: usize,
         destination_cards_decisions: SmallVec<[bool; NUM_DRAWN_DESTINATION_CARDS]>,
     ) -> ManagerActionResult {
-        if self.phase != GamePhase::Starting && self.phase != GamePhase::Playing {
+        if self.game_started() {
             return Err(String::from(
-                "Cannot select destination cards outside of the starting or playing phases.",
+                "Cannot select destination cards if the game is not started, or if it is ended.",
             ));
         }
 
