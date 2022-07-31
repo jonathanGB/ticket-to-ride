@@ -1,4 +1,4 @@
-//! The middleman between the [`crate::router`] handlers, and the [`ticket_to_ride::manager::Manager`].
+//! The middleman between the [`crate::router`] handlers, [`Authenticator`], and [`ticket_to_ride::manager::Manager`].
 
 use crate::authenticator::{Authenticator, AuthenticatorError, Identifier};
 use crate::request_types::*;
