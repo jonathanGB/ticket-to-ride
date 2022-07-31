@@ -33,7 +33,7 @@ pub enum GamePhase {
     ///
     /// Denotes the main turn-based game, up until when we transition to each player's last turn.
     Playing,
-    /// When a player is left with less than three trains, every player has one left turn left.
+    /// When a player is left with less than three trains, every player has one turn left.
     ///
     /// This last turn is denoted by this special phase.
     LastTurn,
@@ -382,7 +382,17 @@ mod tests {
     #[test]
     fn game_phase_to_json() -> serde_json::Result<()> {
         assert_eq!(serde_json::to_string(&GamePhase::InLobby)?, r#""in_lobby""#);
+        assert_eq!(
+            serde_json::to_string(&GamePhase::Starting)?,
+            r#""starting""#
+        );
         assert_eq!(serde_json::to_string(&GamePhase::Playing)?, r#""playing""#);
+        assert_eq!(
+            serde_json::to_string(&GamePhase::LastTurn)?,
+            r#""last_turn""#
+        );
+        assert_eq!(serde_json::to_string(&GamePhase::Done)?, r#""done""#);
+
         Ok(())
     }
 

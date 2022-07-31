@@ -14,9 +14,11 @@ use crate::router::*;
 use controller::GameIdManagerMapping;
 use rocket::fs::FileServer;
 
+/// Path to static files.
 const STATIC_FILES_PATH: &str = "../../frontend/build/static";
 
 #[launch]
+/// Launches the web server.
 fn rocket() -> _ {
     let game_id_manager_mapping = GameIdManagerMapping::new();
     rocket::build()

@@ -1,3 +1,5 @@
+//! The middleman between the [`crate::router`] handlers, and the [`ticket_to_ride::manager::Manager`].
+
 use crate::authenticator::{Authenticator, AuthenticatorError, Identifier};
 use crate::request_types::*;
 use crate::response_types::*;
@@ -10,46 +12,46 @@ use uuid::Uuid;
 
 use ticket_to_ride::manager::{GameState, Manager};
 
+/// Maps a game ID to a manager in a shared concurrent hash map.
 pub type GameIdManagerMapping = DashMap<Uuid, Manager>;
 
+/// Types of error when creating a controller.
 #[derive(Debug)]
 pub enum ControllerGuardError {
     InvalidGameId,
+    /// Should never occur!
+    ///
+    /// This only happens if we try to guard a controller for a request that does not
+    /// guard against the [`GameIdManagerMapping`] state.
     StateNotFound,
     AuthenticatorFailed(AuthenticatorError),
 }
 
 /// Main entrypoint of read-only requests to the server, after routing.
 ///
-/// The controller is in charge of most of the business logic on the server.
+/// The controller is in charge of most of the business logic on the server, coming from the [`crate::router`] handlers.
 /// It delegates specific complexity to the [`Authenticator`], and the [`Manager`].
 ///
 /// It is different from [`WriteController`] in that it has a shared reference to the [`Manager`],
 /// rather than a mutable reference.
+///
+/// Implements [`rocket::request::FromRequest`], so it can be used as a request guard.
+/// In fact, as there is no public constructor, it can only be instantiated via a request guard.
 pub struct ReadController<'a> {
+    /// Shared reference to the game ID, and to the [`Manager`] of that game.
     game_id_and_manager: Ref<'a, Uuid, Manager>,
+    /// The player initiating the read-only request.
     player_id: usize,
 }
 
 impl<'a> ReadController<'a> {
-    #[inline]
-    pub fn new(
-        game_id_and_manager: Ref<'a, Uuid, Manager>,
-        player_id: usize,
-    ) -> ReadController<'a> {
-        Self {
-            game_id_and_manager,
-            player_id,
-        }
-    }
-
     #[inline]
     fn manager(&self) -> &Manager {
         self.game_id_and_manager.value()
     }
 
     #[inline]
-    pub fn get_game_state(&self) -> GameState {
+    pub(crate) fn get_game_state(&self) -> GameState {
         self.manager().get_state(self.player_id)
     }
 }
@@ -64,10 +66,10 @@ impl<'a> FromRequest<'a> for ReadController<'a> {
                 match request.guard::<&'a State<GameIdManagerMapping>>().await {
                     Outcome::Success(game_id_manager_mapping) => {
                         match game_id_manager_mapping.get(authenticator.game_id()) {
-                            Some(game_id_and_manager) => Outcome::Success(Self::new(
+                            Some(game_id_and_manager) => Outcome::Success(Self {
                                 game_id_and_manager,
-                                authenticator.player_id(),
-                            )),
+                                player_id: authenticator.player_id(),
+                            }),
                             None => Outcome::Failure((
                                 Status::NotFound,
                                 ControllerGuardError::InvalidGameId,
@@ -95,29 +97,23 @@ impl<'a> FromRequest<'a> for ReadController<'a> {
 ///
 /// It is different from [`ReadController`] in that it has a mutable reference to the [`Manager`],
 /// rather than a shared reference.
+///
+/// Implements [`rocket::request::FromRequest`], so it can be used as a request guard.
+/// In fact, as there is no public constructor, it can only be instantiated via a request guard.
 pub struct WriteController<'a> {
+    /// Mutable reference to the game ID, and to the [`Manager`] of that game.
     game_id_and_manager: RefMut<'a, Uuid, Manager>,
+    /// The player initiating the write request.
     player_id: usize,
 }
 
 impl<'a> WriteController<'a> {
     #[inline]
-    pub fn new(
-        game_id_and_manager: RefMut<'a, Uuid, Manager>,
-        player_id: usize,
-    ) -> WriteController<'a> {
-        Self {
-            game_id_and_manager,
-            player_id,
-        }
-    }
-
-    #[inline]
     fn manager(&mut self) -> &mut Manager {
         self.game_id_and_manager.value_mut()
     }
 
-    pub fn create_game(state: &DashMap<Uuid, Manager>) -> Uuid {
+    pub(crate) fn create_game(state: &DashMap<Uuid, Manager>) -> Uuid {
         let game_id = Uuid::new_v4();
 
         state.insert(game_id, Manager::new());
@@ -125,7 +121,7 @@ impl<'a> WriteController<'a> {
         game_id
     }
 
-    pub fn load_game(
+    pub(crate) fn load_game(
         mut manager: RefMut<'a, Uuid, Manager>,
         cookies: &CookieJar,
         origin: &Origin,
@@ -133,12 +129,7 @@ impl<'a> WriteController<'a> {
         let game_id = manager.key().clone();
         let manager = manager.value_mut();
 
-        if let Some(player_id) = Authenticator::validate_and_get_player_id(cookies, game_id) {
-            println!(
-                "Loaded game with ID = {}, player_id is = {}",
-                &game_id, player_id
-            );
-
+        if Authenticator::validate_and_get_player_id(cookies, game_id).is_some() {
             return true;
         }
 
@@ -148,17 +139,14 @@ impl<'a> WriteController<'a> {
         };
 
         Authenticator::authenticate(cookies, &origin.path(), Identifier::new(game_id, player_id));
-
-        println!(
-            "Loaded game with ID = {}, now authenticated as {}.",
-            &game_id, player_id
-        );
-
         true
     }
 
     #[inline]
-    pub fn change_player_name(&mut self, change_name_request: ChangeNameRequest) -> ActionResponse {
+    pub(crate) fn change_player_name(
+        &mut self,
+        change_name_request: ChangeNameRequest,
+    ) -> ActionResponse {
         let player_id = self.player_id;
 
         ActionResponse::new(
@@ -168,7 +156,7 @@ impl<'a> WriteController<'a> {
     }
 
     #[inline]
-    pub fn change_player_color(
+    pub(crate) fn change_player_color(
         &mut self,
         change_color_request: ChangeColorRequest,
     ) -> ActionResponse {
@@ -181,7 +169,7 @@ impl<'a> WriteController<'a> {
     }
 
     #[inline]
-    pub fn set_player_ready(
+    pub(crate) fn set_player_ready(
         &mut self,
         set_player_ready_request: SetPlayerReadyRequest,
     ) -> ActionResponse {
@@ -194,7 +182,7 @@ impl<'a> WriteController<'a> {
     }
 
     #[inline]
-    pub fn select_destination_cards(
+    pub(crate) fn select_destination_cards(
         &mut self,
         select_destination_cards_request: SelectDestinationCardsRequest,
     ) -> ActionResponse {
@@ -217,10 +205,10 @@ impl<'a> FromRequest<'a> for WriteController<'a> {
                 match request.guard::<&'a State<GameIdManagerMapping>>().await {
                     Outcome::Success(game_id_manager_mapping) => {
                         match game_id_manager_mapping.get_mut(authenticator.game_id()) {
-                            Some(game_id_and_manager) => Outcome::Success(Self::new(
+                            Some(game_id_and_manager) => Outcome::Success(Self {
                                 game_id_and_manager,
-                                authenticator.player_id(),
-                            )),
+                                player_id: authenticator.player_id(),
+                            }),
                             None => Outcome::Failure((
                                 Status::NotFound,
                                 ControllerGuardError::InvalidGameId,

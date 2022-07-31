@@ -36,7 +36,7 @@ pub enum PlayerColor {
 /// Used internally to keep track of whether an action is allowed,
 /// based on other actions taken by the player in a given turn.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PlayerAction {
     /// # Cardinality
     /// The first and only player action per turn.
@@ -776,6 +776,25 @@ mod tests {
             PlayerColor::Green
         );
 
+        Ok(())
+    }
+
+    // Tests for `PlayerAction`.
+
+    #[test]
+    fn player_action_to_json() -> serde_json::Result<()> {
+        assert_eq!(
+            serde_json::to_string(&PlayerAction::ClaimedRoute)?,
+            r#""CLAIMED_ROUTE""#
+        );
+        assert_eq!(
+            serde_json::to_string(&PlayerAction::DrewCloseTrainCard)?,
+            r#""DREW_CLOSE_TRAIN_CARD""#
+        );
+        assert_eq!(
+            serde_json::to_string(&PlayerAction::SelectedDestinationCards)?,
+            r#""SELECTED_DESTINATION_CARDS""#
+        );
         Ok(())
     }
 
