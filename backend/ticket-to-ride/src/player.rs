@@ -18,6 +18,9 @@ const NUM_OF_CARS: u8 = 45;
 pub type ActionResult = Result<bool, String>;
 
 /// Every player has their own color.
+///
+/// # JSON
+/// Player colors are serialized in lowercase.
 #[derive(Clone, Copy, Debug, Deserialize, Display, EnumIter, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
@@ -35,6 +38,9 @@ pub enum PlayerColor {
 /// Represents all the actions that a player can take.
 /// Used internally to keep track of whether an action is allowed,
 /// based on other actions taken by the player in a given turn.
+///
+/// # JSON
+/// Player actions are serialized in SCREAMING_SNAKE_CASE.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PlayerAction {

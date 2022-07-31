@@ -20,6 +20,9 @@ pub const NUM_DRAWN_DESTINATION_CARDS: usize = 3;
 const NUM_DRAWN_INITIAL_TRAIN_CARDS: usize = 4;
 
 /// Represents the different variants of train cards.
+///
+/// # JSON
+/// Train colors are serialized in lowercase.
 #[derive(Clone, Copy, Debug, Deserialize, Display, EnumIter, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]

@@ -4,6 +4,9 @@ use strum::EnumCount;
 use strum_macros::{Display, EnumCount as EnumCountMacro};
 
 /// All the different cities on the map.
+///
+/// # JSON
+/// Cities are serialized as an 8-bit unsigned integer.
 #[derive(
     Clone,
     Copy,

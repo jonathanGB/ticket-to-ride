@@ -17,6 +17,9 @@ const MAX_PLAYERS: usize = 5;
 #[derive(Clone, Copy, Serialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 /// Phases of the games, which act as states in the game's finite-state machine.
+///
+/// # JSON
+/// Phases are serialized in snake_case.
 pub enum GamePhase {
     /// Initial phase of the game: when players are joining the lobby, before the game has started.
     ///
