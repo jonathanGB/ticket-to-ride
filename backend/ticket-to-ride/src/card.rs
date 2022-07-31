@@ -563,7 +563,6 @@ impl CardDealer {
         &mut self.destination_card_deck
     }
 
-    // TODO: test this.
     /// Returns the state of the card dealer, which is uniformly available to all players.
     pub fn get_state(&self) -> CardDealerState {
         CardDealerState {
@@ -669,6 +668,25 @@ mod tests {
             };
             assert_eq!(num_train_cards_per_color[&color], expected_num);
         }
+
+        // Verify state.
+        let card_dealer_state = card_dealer.get_state();
+        assert_eq!(
+            card_dealer_state.open_train_card_deck,
+            card_dealer.open_train_card_deck.as_slice()
+        );
+        assert_eq!(
+            card_dealer_state.close_train_card_deck_size,
+            card_dealer.close_train_card_deck.len()
+        );
+        assert_eq!(
+            card_dealer_state.discarded_train_card_deck_size,
+            card_dealer.discarded_train_card_deck.len()
+        );
+        assert_eq!(
+            card_dealer_state.destination_card_deck_size,
+            card_dealer.destination_card_deck.len()
+        );
     }
 
     #[test]
@@ -737,6 +755,25 @@ mod tests {
         assert_eq!(num_train_cards_per_color[&TrainColor::Wild], 3);
         assert_eq!(num_train_cards_per_color[&TrainColor::Red], 1);
         assert_eq!(num_train_cards_per_color[&TrainColor::Black], 1);
+
+        // Verify state.
+        let card_dealer_state = card_dealer.get_state();
+        assert_eq!(
+            card_dealer_state.open_train_card_deck,
+            card_dealer.open_train_card_deck.as_slice()
+        );
+        assert_eq!(
+            card_dealer_state.close_train_card_deck_size,
+            card_dealer.close_train_card_deck.len()
+        );
+        assert_eq!(
+            card_dealer_state.discarded_train_card_deck_size,
+            card_dealer.discarded_train_card_deck.len()
+        );
+        assert_eq!(
+            card_dealer_state.destination_card_deck_size,
+            card_dealer.destination_card_deck.len()
+        );
     }
 
     #[test]
@@ -1013,71 +1050,6 @@ mod tests {
         assert_eq!(
             card_dealer.initial_draw(),
             (train_cards_drawn, destination_cards_drawn)
-        );
-    }
-
-    // Accessor tests.
-
-    #[test]
-    fn card_dealer_open_train_card_mut_accessor() {
-        let mut card_dealer = CardDealer::new();
-        let mut open_train_card_deck = card_dealer.open_train_card_deck.clone();
-
-        assert_eq!(
-            card_dealer.get_mut_open_train_card_deck(),
-            &mut open_train_card_deck
-        );
-    }
-
-    #[test]
-    fn card_dealer_close_train_card_accessor() {
-        let card_dealer = CardDealer::new();
-
-        assert_eq!(
-            card_dealer.get_close_train_card_deck(),
-            &card_dealer.close_train_card_deck
-        );
-    }
-
-    #[test]
-    fn card_dealer_close_train_card_mut_accessor() {
-        let mut card_dealer = CardDealer::new();
-        let mut close_train_card_deck = card_dealer.close_train_card_deck.clone();
-
-        assert_eq!(
-            card_dealer.get_mut_close_train_card_deck(),
-            &mut close_train_card_deck
-        );
-    }
-
-    #[test]
-    fn card_dealer_discarded_train_card_accessor() {
-        let card_dealer = CardDealer::new();
-
-        assert_eq!(
-            card_dealer.get_discarded_train_card_deck(),
-            &card_dealer.discarded_train_card_deck
-        );
-    }
-
-    #[test]
-    fn card_dealer_destination_card_accessor() {
-        let card_dealer = CardDealer::new();
-
-        assert_eq!(
-            card_dealer.get_destination_card_deck(),
-            &card_dealer.destination_card_deck
-        );
-    }
-
-    #[test]
-    fn card_dealer_destination_card_mut_accessor() {
-        let mut card_dealer = CardDealer::new();
-        let mut destination_card_deck = card_dealer.destination_card_deck.clone();
-
-        assert_eq!(
-            card_dealer.get_mut_destination_card_deck(),
-            &mut destination_card_deck
         );
     }
 
