@@ -1,6 +1,6 @@
 import React from 'react';
 import '../CSS/ColorPicker.css';
-import PlayerColor from '../PlayerColorEnum';
+import PlayerColor from '../GameState/PlayerColor';
 
 class ColorPicker extends React.Component<{selfColor?: PlayerColor, onChange: any}, {}> {
   constructor(props: any) {

@@ -1,8 +1,8 @@
 import React from 'react';
 import '../CSS/PlayerCustom.css';
-import PlayerColor from '../PlayerColorEnum'
+import PlayerColor from '../GameState/PlayerColor'
 
-class PlayerCustom extends React.Component<{name?: string, color?: PlayerColor, input?: JSX.Element}, {}> {
+class PlayerCustom extends React.Component<{name: String, color: PlayerColor, isSelf: boolean}, {}> {
   constructor(props: any) {
     super(props);
   }
@@ -16,9 +16,9 @@ class PlayerCustom extends React.Component<{name?: string, color?: PlayerColor, 
       className = 'playerColor-default';
     }
 
-    if(this.props.input){
+    if(this.props.isSelf){
       return <div className={className} id="playerCustomSelf">
-      <div>{this.props.input} </div>
+        <div>{this.props.name} </div>
     </div>
     }
     return <div className={className} id="playerCustomOther">
