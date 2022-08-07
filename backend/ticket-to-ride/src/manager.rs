@@ -212,7 +212,6 @@ impl Manager {
         )
     }
 
-    // TODO: test this.
     /// Changes the given player's name.
     ///
     /// Returns an `Err` if either:
@@ -244,7 +243,6 @@ impl Manager {
         Ok(())
     }
 
-    // TODO: test this.
     /// Changes the given player's color.
     ///
     /// Returns an `Err` if either:
@@ -276,7 +274,6 @@ impl Manager {
         Ok(())
     }
 
-    // TODO: test this.
     /// Changes the given player's _ready_ status (to `true` or `false`).
     ///
     /// Returns an `Err` if we are not in [`GamePhase::InLobby`].
@@ -321,19 +318,16 @@ impl Manager {
         Ok(())
     }
 
-    // TODO: test this.
     #[inline]
     fn game_started(&self) -> bool {
         self.phase == GamePhase::Starting || self.turn_based_game_started()
     }
 
-    // TODO: test this.
     #[inline]
     fn turn_based_game_started(&self) -> bool {
         self.phase == GamePhase::Playing || self.phase == GamePhase::LastTurn
     }
 
-    // TODO: test this.
     /// Allows a given player to select from the set of destination cards --
     /// which they will try to fulfill.
     ///
@@ -352,7 +346,7 @@ impl Manager {
         player_id: usize,
         destination_cards_decisions: SmallVec<[bool; NUM_DRAWN_DESTINATION_CARDS]>,
     ) -> ManagerActionResult {
-        if self.game_started() {
+        if !self.game_started() {
             return Err(String::from(
                 "Cannot select destination cards if the game is not started, or if it is ended.",
             ));
@@ -382,6 +376,8 @@ impl Manager {
 mod tests {
     use super::*;
 
+    // Tests for `GamePhase`.
+
     #[test]
     fn game_phase_to_json() -> serde_json::Result<()> {
         assert_eq!(serde_json::to_string(&GamePhase::InLobby)?, r#""in_lobby""#);
@@ -399,7 +395,20 @@ mod tests {
         Ok(())
     }
 
-    // Tests for `Manager::add_player`.
+    // Tests for `Manager`.
+
+    #[test]
+    fn manager_new() {
+        let m = Manager::new();
+
+        assert_eq!(m.phase, GamePhase::InLobby);
+        assert!(m.turn.is_none());
+        assert!(m.map.is_none());
+        assert!(m.card_dealer.is_none());
+        assert!(m.players.is_empty());
+        assert!(m.players_position.is_empty());
+        assert_eq!(m.num_players_selected_initial_destination_cards, 0);
+    }
 
     #[test]
     fn manager_add_player_outside_of_in_lobby_phase() {
@@ -411,8 +420,18 @@ mod tests {
         m.phase = GamePhase::Playing;
         assert!(m.add_player().is_none());
 
+        assert!(m.players.is_empty());
+
         m.phase = GamePhase::InLobby;
-        assert!(m.add_player().is_some());
+        let player_id = m.add_player();
+        assert!(player_id.is_some());
+        let player_id = player_id.unwrap();
+
+        let game_state = m.get_state(player_id);
+        assert_eq!(game_state.phase, GamePhase::InLobby);
+        assert!(game_state.turn.is_none());
+        assert!(game_state.card_dealer_state.is_none());
+        assert_eq!(game_state.players_state.len(), 1);
     }
 
     #[test]
@@ -438,6 +457,9 @@ mod tests {
                 assert_ne!(player.id(), other_player.id());
             }
         }
+
+        let game_state = m.get_state(0);
+        assert_eq!(game_state.players_state.len(), MAX_PLAYERS);
     }
 
     #[test]
@@ -452,5 +474,198 @@ mod tests {
         assert_eq!(m.add_player(), Some(4));
         assert_eq!(m.num_players(), 5);
         assert_eq!(m.players[4].name(), "Player 00004");
+    }
+
+    #[test]
+    fn manager_change_player_name() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        let new_name = String::from("Bob");
+        assert!(m.change_player_name(player_id, new_name.clone()).is_ok());
+        assert_eq!(m.players[0].name(), new_name.clone());
+
+        assert!(m.change_player_name(player_id, new_name.clone()).is_err());
+        assert!(m
+            .change_player_name(other_player_id, new_name.clone())
+            .is_err());
+        assert_ne!(m.players[1].name(), new_name);
+    }
+
+    #[test]
+    fn manager_change_player_name_wrong_phase() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        m.phase = GamePhase::Playing;
+
+        let new_name = String::from("Bob");
+        assert!(m.change_player_name(player_id, new_name.clone()).is_err());
+        assert!(m.change_player_name(other_player_id, new_name).is_err());
+    }
+
+    #[test]
+    fn manager_change_player_color() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        let new_color = PlayerColor::Yellow;
+        assert!(m.change_player_color(player_id, new_color).is_ok());
+        assert_eq!(m.players[0].color(), new_color);
+
+        assert!(m.change_player_color(player_id, new_color).is_err());
+        assert!(m.change_player_color(other_player_id, new_color).is_err());
+        assert_ne!(m.players[1].color(), new_color);
+    }
+
+    #[test]
+    fn manager_change_player_color_wrong_phase() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        m.phase = GamePhase::Playing;
+
+        let new_color = PlayerColor::Yellow;
+        assert!(m.change_player_color(player_id, new_color).is_err());
+        assert!(m.change_player_color(other_player_id, new_color).is_err());
+    }
+
+    #[test]
+    fn manager_set_ready() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert_eq!(m.phase, GamePhase::InLobby);
+        assert!(m.players[0].ready());
+
+        assert!(m.set_ready(player_id, false).is_ok());
+        assert_eq!(m.phase, GamePhase::InLobby);
+        assert_eq!(m.players[0].ready(), false);
+
+        assert!(m.set_ready(other_player_id, true).is_ok());
+        assert_eq!(m.phase, GamePhase::InLobby);
+        assert!(m.players[1].ready());
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert_eq!(m.phase, GamePhase::Starting);
+        assert!(m.players[0].ready());
+
+        assert!(m.turn.is_none());
+        assert!(m.map.is_some());
+        assert!(m.card_dealer.is_some());
+
+        let game_state = m.get_state(player_id);
+        assert_eq!(game_state.phase, GamePhase::Starting);
+        assert!(game_state.turn.is_none());
+        assert!(game_state.card_dealer_state.is_some());
+        assert_eq!(game_state.players_state.len(), 2);
+        assert_ne!(game_state.players_state[0], game_state.players_state[1]);
+    }
+
+    #[test]
+    fn manager_set_ready_wrong_phase() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        m.phase = GamePhase::Playing;
+
+        let is_ready = false;
+        assert!(m.set_ready(player_id, is_ready).is_err());
+        assert!(m.set_ready(other_player_id, is_ready).is_err());
+    }
+
+    #[test]
+    fn manager_select_destination_cards() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        let destination_cards_decisions = smallvec![true, false, true];
+        assert!(m
+            .select_destination_cards(player_id, destination_cards_decisions.clone())
+            .is_err());
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        // Invalid selection, because at least two cards must be selected when we start the game.
+        let invalid_cards_decisions = smallvec![true, false, false];
+        assert!(m
+            .select_destination_cards(player_id, invalid_cards_decisions)
+            .is_err());
+
+        assert!(m
+            .select_destination_cards(player_id, destination_cards_decisions.clone())
+            .is_ok());
+        assert_eq!(m.phase, GamePhase::Starting);
+        assert!(m.turn.is_none());
+
+        // Same player can't select cards again in the same turn.
+        assert!(m
+            .select_destination_cards(player_id, destination_cards_decisions.clone())
+            .is_err());
+
+        assert!(m
+            .select_destination_cards(other_player_id, destination_cards_decisions)
+            .is_ok());
+        assert_eq!(m.phase, GamePhase::Playing);
+        assert_eq!(m.turn, Some(0));
+    }
+
+    #[test]
+    fn manager_select_destination_cards_game_done() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        m.add_player().unwrap();
+
+        m.phase = GamePhase::Done;
+
+        let destination_cards_decisions = smallvec![true, false, true];
+        assert!(m
+            .select_destination_cards(player_id, destination_cards_decisions)
+            .is_err());
+    }
+
+    #[test]
+    fn manager_game_started() {
+        let mut m = Manager::new();
+
+        assert_eq!(m.game_started(), false);
+        assert_eq!(m.turn_based_game_started(), false);
+
+        m.phase = GamePhase::Starting;
+
+        assert!(m.game_started());
+        assert_eq!(m.turn_based_game_started(), false);
+
+        m.phase = GamePhase::Playing;
+
+        assert!(m.game_started());
+        assert!(m.turn_based_game_started());
+
+        m.phase = GamePhase::LastTurn;
+
+        assert!(m.game_started());
+        assert!(m.turn_based_game_started());
+
+        m.phase = GamePhase::Done;
+
+        assert_eq!(m.game_started(), false);
+        assert_eq!(m.turn_based_game_started(), false);
     }
 }
