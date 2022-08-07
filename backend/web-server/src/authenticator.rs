@@ -169,8 +169,7 @@ mod test {
 
     #[test]
     fn authenticator_authentication_outcome_no_cookies() {
-        let rocket = rocket::build();
-        let client = Client::tracked(rocket).expect("valid rocket");
+        let client = Client::tracked(rocket::build()).expect("valid rocket");
         let Identifier { game_id, .. } = new_identifier();
 
         assert_eq!(
@@ -182,8 +181,7 @@ mod test {
 
     #[test]
     fn authenticator_authentication_outcome_invalid_cookie() {
-        let rocket = rocket::build();
-        let client = Client::tracked(rocket).expect("valid rocket");
+        let client = Client::tracked(rocket::build()).expect("valid rocket");
         let req = client.get("/");
         let Identifier { game_id, .. } = new_identifier();
 
@@ -200,8 +198,7 @@ mod test {
 
     #[test]
     fn authenticator_authentication_outcome_wrong_game_id() {
-        let rocket = rocket::build();
-        let client = Client::tracked(rocket).expect("valid rocket");
+        let client = Client::tracked(rocket::build()).expect("valid rocket");
         let req = client.get("/");
         let identifier = new_identifier();
         let wrong_game_id = Uuid::new_v4();
@@ -219,8 +216,7 @@ mod test {
 
     #[test]
     fn authenticator_authentication_outcome_success() {
-        let rocket = rocket::build();
-        let client = Client::tracked(rocket).expect("valid rocket");
+        let client = Client::tracked(rocket::build()).expect("valid rocket");
         let req = client.get("/");
         let identifier = new_identifier();
 
@@ -237,8 +233,7 @@ mod test {
 
     #[test]
     fn authenticator_authenticate() {
-        let rocket = rocket::build();
-        let client = Client::tracked(rocket).expect("valid rocket");
+        let client = Client::tracked(rocket::build()).expect("valid rocket");
         let identifier = new_identifier();
         let path = format!("/game/{}", identifier.game_id);
         let req = client.get(&path);
@@ -262,8 +257,9 @@ mod test {
 
     #[rocket::async_test]
     async fn authenticator_from_request_invalid_path() {
-        let rocket = rocket::build();
-        let client = AsyncClient::tracked(rocket).await.expect("valid rocket");
+        let client = AsyncClient::tracked(rocket::build())
+            .await
+            .expect("valid rocket");
         let identifier = new_identifier();
         let path = format!("/wrong_path/{}", identifier.game_id);
         let req = client.get(&path);
@@ -277,8 +273,9 @@ mod test {
 
     #[rocket::async_test]
     async fn authenticator_from_request_invalid_uuid_in_path() {
-        let rocket = rocket::build();
-        let client = AsyncClient::tracked(rocket).await.expect("valid rocket");
+        let client = AsyncClient::tracked(rocket::build())
+            .await
+            .expect("valid rocket");
         let path = String::from("/game/abc-123");
         let req = client.get(&path);
 
@@ -291,8 +288,9 @@ mod test {
 
     #[rocket::async_test]
     async fn authenticator_from_request_authentication_failure() {
-        let rocket = rocket::build();
-        let client = AsyncClient::tracked(rocket).await.expect("valid rocket");
+        let client = AsyncClient::tracked(rocket::build())
+            .await
+            .expect("valid rocket");
         let identifier = new_identifier();
         let path = format!("/game/{}", identifier.game_id);
         let req = client.get(&path);
@@ -306,8 +304,9 @@ mod test {
 
     #[rocket::async_test]
     async fn authenticator_from_request_authentication_success() {
-        let rocket = rocket::build();
-        let client = AsyncClient::tracked(rocket).await.expect("valid rocket");
+        let client = AsyncClient::tracked(rocket::build())
+            .await
+            .expect("valid rocket");
         let identifier = new_identifier();
         let path = format!("/game/{}", identifier.game_id);
         let req = client.get(&path);
