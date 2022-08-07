@@ -9,6 +9,9 @@ mod request_types;
 mod response_types;
 mod router;
 
+#[cfg(test)]
+mod router_tests;
+
 use crate::router::*;
 
 use controller::GameIdManagerMapping;

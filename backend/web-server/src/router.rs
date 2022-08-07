@@ -21,7 +21,7 @@ use std::path::Path;
 
 /// Path to the frontend build directory.
 /// This directory contains the frontend app that needs to be served to clients.
-const BUILD_FILES_PATH: &str = "../../frontend/build";
+pub(crate) const BUILD_FILES_PATH: &str = "../../frontend/build";
 
 #[inline]
 /// Helper to redirect to [`root()`].
