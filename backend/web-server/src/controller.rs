@@ -60,32 +60,23 @@ impl<'a> ReadController<'a> {
 impl<'a> FromRequest<'a> for ReadController<'a> {
     type Error = ControllerGuardError;
 
+    #[inline]
     async fn from_request(request: &'a Request<'_>) -> Outcome<Self, Self::Error> {
-        match request.guard::<Authenticator>().await {
-            Outcome::Success(authenticator) => {
-                match request.guard::<&'a State<GameIdManagerMapping>>().await {
-                    Outcome::Success(game_id_manager_mapping) => {
-                        match game_id_manager_mapping.get(authenticator.game_id()) {
-                            Some(game_id_and_manager) => Outcome::Success(Self {
-                                game_id_and_manager,
-                                player_id: authenticator.player_id(),
-                            }),
-                            None => Outcome::Failure((
-                                Status::NotFound,
-                                ControllerGuardError::InvalidGameId,
-                            )),
-                        }
-                    }
-                    _ => Outcome::Failure((
-                        Status::InternalServerError,
-                        ControllerGuardError::StateNotFound,
-                    )),
-                }
-            }
-            Outcome::Failure((status, e)) => {
-                Outcome::Failure((status, ControllerGuardError::AuthenticatorFailed(e)))
-            }
-            Outcome::Forward(_) => unreachable!(),
+        Self::controller_from_request(request).await
+    }
+}
+
+impl<'a> Controller<'a> for ReadController<'a> {
+    fn controller_from_request_internal(
+        game_id_manager_mapping: &'a State<GameIdManagerMapping>,
+        authenticator: Authenticator,
+    ) -> Outcome<Self, ControllerGuardError> {
+        match game_id_manager_mapping.get(authenticator.game_id()) {
+            Some(game_id_and_manager) => Outcome::Success(Self {
+                game_id_and_manager,
+                player_id: authenticator.player_id(),
+            }),
+            None => Outcome::Failure((Status::NotFound, ControllerGuardError::InvalidGameId)),
         }
     }
 }
@@ -199,21 +190,45 @@ impl<'a> WriteController<'a> {
 impl<'a> FromRequest<'a> for WriteController<'a> {
     type Error = ControllerGuardError;
 
+    #[inline]
     async fn from_request(request: &'a Request<'_>) -> Outcome<Self, Self::Error> {
+        Self::controller_from_request(request).await
+    }
+}
+
+impl<'a> Controller<'a> for WriteController<'a> {
+    fn controller_from_request_internal(
+        game_id_manager_mapping: &'a State<GameIdManagerMapping>,
+        authenticator: Authenticator,
+    ) -> Outcome<Self, ControllerGuardError> {
+        match game_id_manager_mapping.get_mut(authenticator.game_id()) {
+            Some(game_id_and_manager) => Outcome::Success(Self {
+                game_id_and_manager,
+                player_id: authenticator.player_id(),
+            }),
+            None => Outcome::Failure((Status::NotFound, ControllerGuardError::InvalidGameId)),
+        }
+    }
+}
+
+#[rocket::async_trait]
+trait Controller<'a>: Sized {
+    fn controller_from_request_internal(
+        game_id_manager_mapping: &'a State<GameIdManagerMapping>,
+        authenticator: Authenticator,
+    ) -> Outcome<Self, ControllerGuardError>;
+
+    async fn controller_from_request(
+        request: &'a Request<'_>,
+    ) -> Outcome<Self, ControllerGuardError> {
         match request.guard::<Authenticator>().await {
             Outcome::Success(authenticator) => {
                 match request.guard::<&'a State<GameIdManagerMapping>>().await {
                     Outcome::Success(game_id_manager_mapping) => {
-                        match game_id_manager_mapping.get_mut(authenticator.game_id()) {
-                            Some(game_id_and_manager) => Outcome::Success(Self {
-                                game_id_and_manager,
-                                player_id: authenticator.player_id(),
-                            }),
-                            None => Outcome::Failure((
-                                Status::NotFound,
-                                ControllerGuardError::InvalidGameId,
-                            )),
-                        }
+                        Self::controller_from_request_internal(
+                            game_id_manager_mapping,
+                            authenticator,
+                        )
                     }
                     _ => Outcome::Failure((
                         Status::InternalServerError,
