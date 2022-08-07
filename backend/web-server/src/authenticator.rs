@@ -101,7 +101,6 @@ impl Authenticator {
                 _ => Outcome::Failure((Status::Unauthorized, AuthenticatorError::InvalidPlayerId)),
             }
         } else {
-            println!("No cookie");
             Outcome::Failure((Status::Unauthorized, AuthenticatorError::Unauthenticated))
         }
     }
