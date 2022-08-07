@@ -1,16 +1,18 @@
-import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import React from "react";
+import { Routes, Route } from "react-router-dom";
 
-import LandingPage from './LandingPage';
-import Game from './Game';
+import LandingPage from "./LandingPage";
+import Game from "./Game";
 
 const Main = () => {
   return (
-    <Routes> {/* The Switch decides which component to show based on the current URL.*/}
-      <Route path='/' element={<LandingPage/>} />
-      <Route path='game/*' element={<Game/>} />
+    <Routes>
+      {" "}
+      {/* The Switch decides which component to show based on the current URL.*/}
+      <Route path="/" element={<LandingPage />} />
+      <Route path="game/*" element={<Game />} />
     </Routes>
   );
-}
+};
 
 export default Main;

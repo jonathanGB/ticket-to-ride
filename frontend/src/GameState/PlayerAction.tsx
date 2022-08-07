@@ -1,8 +1,8 @@
 export enum PlayerAction {
-    ClaimedRoute,
-    DrewOpenWildTrainCard,
-    DrewOpenNonWildTrainCard,
-    DrewCloseTrainCard,
-    DrewDestinationCards,
-    SelectedDestinationCards,
+  ClaimedRoute,
+  DrewOpenWildTrainCard,
+  DrewOpenNonWildTrainCard,
+  DrewCloseTrainCard,
+  DrewDestinationCards,
+  SelectedDestinationCards,
 }

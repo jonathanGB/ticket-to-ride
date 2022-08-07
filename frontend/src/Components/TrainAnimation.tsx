@@ -1,5 +1,5 @@
-import React from 'react';
-import '../CSS/TrainAnimation.css';
+import React from "react";
+import "../CSS/TrainAnimation.css";
 
 class TrainAnimation extends React.Component<{}, {}> {
   constructor(props: any) {
@@ -7,11 +7,12 @@ class TrainAnimation extends React.Component<{}, {}> {
   }
 
   render() {
-
-    return <div className='train'>
-             <div className='background'/>
-        </div>
+    return (
+      <div className="train">
+        <div className="background" />
+      </div>
+    );
   }
-};
+}
 
 export default TrainAnimation;
