@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 import React, { ChangeEvent, CSSProperties, FormEvent } from "react";
 import "../CSS/Lobby.css";
 import PlayerCustom from "./PlayerCustom";
@@ -6,6 +7,11 @@ import PlayerColor from "../GameState/PlayerColor";
 import TrainAnimation from "./TrainAnimation";
 import { GameState } from "../GameState/GameState";
 import { PlayerState } from "../GameState/PlayerState";
+=======
+import React from 'react';
+import '../CSS/Lobby.css';
+import PlayerCustom from './PlayerCustom';
+>>>>>>> Stashed changes
 
 interface PlayerNameFormCollection extends HTMLFormControlsCollection {
   playerName: HTMLInputElement;
