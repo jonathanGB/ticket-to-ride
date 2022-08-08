@@ -148,7 +148,8 @@ impl Manager {
         }
     }
 
-    fn num_players(&self) -> usize {
+    /// Returns the number of players in the current game.
+    pub fn num_players(&self) -> usize {
         self.players.len()
     }
 

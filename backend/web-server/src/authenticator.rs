@@ -6,7 +6,7 @@ use rocket::request::{FromRequest, Outcome, Request};
 use uuid::Uuid;
 
 /// The cookie's name for the [`Identifier`], which we authenticate against.
-const COOKIE_IDENTIFIER_NAME: &str = "identifier";
+pub(crate) const COOKIE_IDENTIFIER_NAME: &str = "identifier";
 
 /// Identifier of the request, which is contained in a private cookie sent by the players.
 ///
@@ -128,6 +128,7 @@ impl<'r> FromRequest<'r> for Authenticator {
 mod test {
     use super::*;
     use rocket::local::blocking::Client;
+
     type AsyncClient = rocket::local::asynchronous::Client;
 
     fn new_authenticator() -> Authenticator {
