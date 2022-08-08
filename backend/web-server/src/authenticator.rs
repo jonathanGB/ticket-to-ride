@@ -114,7 +114,12 @@ impl<'r> FromRequest<'r> for Authenticator {
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         // The path should be `/game/<game_id>`.
         if !req.uri().path().starts_with("/game/") {
-            return Outcome::Failure((Status::NotFound, AuthenticatorError::InvalidUrl));
+            eprintln!(
+                "The `Authenticator` is used as a request guard for a path `{}`,
+                which does not start with `/game/`.",
+                req.uri().path()
+            );
+            return Outcome::Failure((Status::InternalServerError, AuthenticatorError::InvalidUrl));
         }
 
         match req.param::<Uuid>(1) {
@@ -268,7 +273,7 @@ mod test {
         let outcome = Authenticator::from_request(req.inner()).await;
         assert_eq!(
             outcome.failed(),
-            Some((Status::NotFound, AuthenticatorError::InvalidUrl))
+            Some((Status::InternalServerError, AuthenticatorError::InvalidUrl))
         );
     }
 

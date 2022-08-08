@@ -230,10 +230,17 @@ trait Controller<'a>: Sized {
                             authenticator,
                         )
                     }
-                    _ => Outcome::Failure((
-                        Status::InternalServerError,
-                        ControllerGuardError::StateNotFound,
-                    )),
+                    _ => {
+                        eprintln!(
+                            "No `State<GameIdManagerMapping>` is set for the given handler.
+                            Consider adding `ReadController` or `WriteController` as a request guard."
+                        );
+
+                        Outcome::Failure((
+                            Status::InternalServerError,
+                            ControllerGuardError::StateNotFound,
+                        ))
+                    }
                 }
             }
             Outcome::Failure((status, e)) => {
