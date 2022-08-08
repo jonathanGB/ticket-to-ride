@@ -3,11 +3,11 @@
 //! These requests should be valid JSON (otherwise the server will refuse them),
 //! part of the request body.
 
-use rocket::serde::Deserialize;
+use rocket::serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use ticket_to_ride::{card::NUM_DRAWN_DESTINATION_CARDS, player::PlayerColor};
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
 #[serde(crate = "rocket::serde")]
 /// Expected request when calling [`crate::router::change_player_name()`].
 pub struct ChangeNameRequest {
@@ -15,7 +15,7 @@ pub struct ChangeNameRequest {
     pub new_name: String,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
 #[serde(crate = "rocket::serde")]
 /// Expected request when calling [`crate::router::change_player_color()`].
 pub struct ChangeColorRequest {

@@ -1,7 +1,7 @@
 //! All the custom responses the server supports.
 
 use rocket::response::Redirect;
-use rocket::serde::Serialize;
+use rocket::serde::{Deserialize, Serialize};
 use ticket_to_ride::manager::ManagerActionResult;
 
 /// Types of error when loading a game.
@@ -13,15 +13,15 @@ pub enum LoadGameError {
 }
 
 /// The general response to player actions, serializable in JSON.
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct ActionResponse {
     /// Whether the action succeeded.
-    success: bool,
+    pub success: bool,
     /// If the action succeeded, this is `None`.
     ///
     /// If the action failed, a human-readable error message is provided.
-    error_message: Option<String>,
+    pub error_message: Option<String>,
 }
 
 impl ActionResponse {
