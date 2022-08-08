@@ -496,7 +496,7 @@ fn router_change_player_color() {
     assert!(res_json.success);
     assert!(res_json.error_message.is_none());
 
-    // Changing the color of the first player to the same name should fail.
+    // Changing the color of the first player to the same color should fail.
     let res = client
         .put(uri!(change_player_color(game_id)))
         .private_cookie(cookies[0].clone())
@@ -527,7 +527,7 @@ fn router_change_player_color() {
     assert!(res_json.success);
     assert!(res_json.error_message.is_none());
 
-    // Change the color of the third player to an existing name fails.
+    // Change the color of the third player to an existing color fails.
     let res = client
         .put(uri!(change_player_color(game_id)))
         .private_cookie(cookies[2].clone())
