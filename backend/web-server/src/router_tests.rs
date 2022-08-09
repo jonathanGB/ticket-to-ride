@@ -657,4 +657,19 @@ fn router_set_player_ready() {
     validate_state_if(state, &game_id, |game_manager| {
         assert_eq!(game_manager.get_state(0).phase, GamePhase::Starting);
     });
+
+    // Set a  player as ready when we are out of the lobby should fail.
+    let set_player_ready_request = SetPlayerReadyRequest { is_ready: true };
+    let res = client
+        .put(uri!(set_player_ready(game_id)))
+        .private_cookie(cookies[0].clone())
+        .json(&set_player_ready_request)
+        .dispatch();
+
+    assert_eq!(res.status(), Status::Ok);
+    let res_json = res.into_json();
+    assert!(res_json.is_some());
+    let res_json: ActionResponse = res_json.unwrap();
+    assert_eq!(res_json.success, false);
+    assert!(res_json.error_message.is_some());
 }
