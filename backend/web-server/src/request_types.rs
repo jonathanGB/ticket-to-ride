@@ -31,7 +31,7 @@ pub struct SetPlayerReadyRequest {
     pub is_ready: bool,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
 #[serde(crate = "rocket::serde")]
 /// Expected request when calling [`crate::router::select_destination_cards()`].
 pub struct SelectDestinationCardsRequest {

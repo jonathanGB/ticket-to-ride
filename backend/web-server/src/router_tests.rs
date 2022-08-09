@@ -15,6 +15,7 @@ use rocket::{
     http::{ContentType, Status},
     local::blocking::Client,
 };
+use smallvec::smallvec;
 use std::fs::{read, read_to_string};
 use std::path::Path;
 use ticket_to_ride::{
@@ -672,4 +673,94 @@ fn router_set_player_ready() {
     let res_json: ActionResponse = res_json.unwrap();
     assert_eq!(res_json.success, false);
     assert!(res_json.error_message.is_some());
+}
+
+#[test]
+fn router_select_destination_cards() {
+    let client = Client::untracked(rocket()).expect("valid rocket");
+    let game_id = create_game(&client);
+
+    // Load five unique players.
+
+    let cookies: Vec<_> = (1..=5)
+        .map(|_| {
+            let res = client.get(uri!(load_game(game_id))).dispatch();
+            assert_eq!(res.status(), Status::Ok);
+
+            let cookie = res.cookies().get_private(COOKIE_IDENTIFIER_NAME);
+            assert!(cookie.is_some());
+            cookie.unwrap()
+        })
+        .collect();
+    assert_eq!(cookies.len(), 5);
+
+    let state = client.rocket().state::<GameIdManagerMapping>().unwrap();
+    validate_state_num_of_players(state, &game_id, 5);
+
+    // Set all players as ready.
+    for cookie in &cookies {
+        let set_player_ready_request = SetPlayerReadyRequest { is_ready: true };
+        let res = client
+            .put(uri!(set_player_ready(game_id)))
+            .private_cookie(cookie.clone())
+            .json(&set_player_ready_request)
+            .dispatch();
+
+        assert_eq!(res.status(), Status::Ok);
+        let res_json = res.into_json();
+        assert!(res_json.is_some());
+        let res_json: ActionResponse = res_json.unwrap();
+        assert!(res_json.success);
+        assert!(res_json.error_message.is_none());
+    }
+
+    validate_state_if(state, &game_id, |game_manager| {
+        let game_state = game_manager.get_state(0);
+
+        assert_eq!(game_state.phase, GamePhase::Starting);
+        assert_eq!(game_state.turn, None);
+    });
+
+    // Third player selects too little destination cards (minimum is two in `Starting` phase).
+    let select_destination_cards_request = SelectDestinationCardsRequest {
+        destination_cards_decisions: smallvec![true, false, false],
+    };
+    let res = client
+        .put(uri!(select_destination_cards(game_id)))
+        .private_cookie(cookies[2].clone())
+        .json(&select_destination_cards_request)
+        .dispatch();
+
+    assert_eq!(res.status(), Status::Ok);
+    let res_json = res.into_json();
+    assert!(res_json.is_some());
+    let res_json: ActionResponse = res_json.unwrap();
+    assert_eq!(res_json.success, false);
+    assert!(res_json.error_message.is_some());
+
+    // Make all players select their destination cards.
+    for cookie in &cookies {
+        let select_destination_cards_request = SelectDestinationCardsRequest {
+            destination_cards_decisions: smallvec![true, false, true],
+        };
+        let res = client
+            .put(uri!(select_destination_cards(game_id)))
+            .private_cookie(cookie.clone())
+            .json(&select_destination_cards_request)
+            .dispatch();
+
+        assert_eq!(res.status(), Status::Ok);
+        let res_json = res.into_json();
+        assert!(res_json.is_some());
+        let res_json: ActionResponse = res_json.unwrap();
+        assert!(res_json.success);
+        assert!(res_json.error_message.is_none());
+    }
+
+    validate_state_if(state, &game_id, |game_manager| {
+        let game_state = game_manager.get_state(0);
+
+        assert_eq!(game_state.phase, GamePhase::Playing);
+        assert_eq!(game_state.turn, Some(0));
+    });
 }
