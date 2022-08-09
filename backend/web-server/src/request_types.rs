@@ -23,7 +23,7 @@ pub struct ChangeColorRequest {
     pub new_color: PlayerColor,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
 #[serde(crate = "rocket::serde")]
 /// Expected request when calling [`crate::router::set_player_ready()`].
 pub struct SetPlayerReadyRequest {

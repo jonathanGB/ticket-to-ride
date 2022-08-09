@@ -558,3 +558,103 @@ fn router_change_player_color() {
         );
     });
 }
+
+#[test]
+fn router_set_player_ready() {
+    let client = Client::untracked(rocket()).expect("valid rocket");
+    let game_id = create_game(&client);
+
+    // Load five unique players.
+
+    let cookies: Vec<_> = (1..=5)
+        .map(|_| {
+            let res = client.get(uri!(load_game(game_id))).dispatch();
+            assert_eq!(res.status(), Status::Ok);
+
+            let cookie = res.cookies().get_private(COOKIE_IDENTIFIER_NAME);
+            assert!(cookie.is_some());
+            cookie.unwrap()
+        })
+        .collect();
+    assert_eq!(cookies.len(), 5);
+
+    let state = client.rocket().state::<GameIdManagerMapping>().unwrap();
+    validate_state_num_of_players(state, &game_id, 5);
+    validate_state_if(state, &game_id, |game_manager| {
+        assert!(game_manager
+            .get_state(0)
+            .players_state
+            .iter()
+            .all(|player| !player.public_player_state.is_ready));
+    });
+
+    // Set all players (except the first one) as ready.
+    cookies.iter().skip(1).for_each(|cookie| {
+        let set_player_ready_request = SetPlayerReadyRequest { is_ready: true };
+        let res = client
+            .put(uri!(set_player_ready(game_id)))
+            .private_cookie(cookie.clone())
+            .json(&set_player_ready_request)
+            .dispatch();
+
+        assert_eq!(res.status(), Status::Ok);
+        let res_json = res.into_json();
+        assert!(res_json.is_some());
+        let res_json: ActionResponse = res_json.unwrap();
+        assert!(res_json.success);
+        assert!(res_json.error_message.is_none());
+    });
+
+    validate_state_if(state, &game_id, |game_manager| {
+        assert_eq!(game_manager.get_state(0).phase, GamePhase::InLobby);
+    });
+
+    // Setting a player as ready (without a cookie) should fail.
+    let set_player_ready_request = SetPlayerReadyRequest { is_ready: true };
+    let res = client
+        .put(uri!(set_player_ready(game_id)))
+        .json(&set_player_ready_request)
+        .dispatch();
+
+    assert_eq!(res.status(), Status::Unauthorized);
+
+    // Set the first player as not ready should change nothing.
+    let set_player_ready_request = SetPlayerReadyRequest { is_ready: false };
+    let res = client
+        .put(uri!(set_player_ready(game_id)))
+        .private_cookie(cookies[0].clone())
+        .json(&set_player_ready_request)
+        .dispatch();
+
+    assert_eq!(res.status(), Status::Ok);
+    let res_json = res.into_json();
+    assert!(res_json.is_some());
+    let res_json: ActionResponse = res_json.unwrap();
+    assert!(res_json.success);
+    assert!(res_json.error_message.is_none());
+
+    // Validate that we are still in the lobby.
+    validate_state_if(state, &game_id, |game_manager| {
+        assert_eq!(game_manager.get_state(0).phase, GamePhase::InLobby);
+    });
+
+    // Set the first player as ready now.
+    let set_player_ready_request = SetPlayerReadyRequest { is_ready: true };
+    let res = client
+        .put(uri!(set_player_ready(game_id)))
+        .private_cookie(cookies[0].clone())
+        .json(&set_player_ready_request)
+        .dispatch();
+
+    assert_eq!(res.status(), Status::Ok);
+    let res_json = res.into_json();
+    assert!(res_json.is_some());
+    let res_json: ActionResponse = res_json.unwrap();
+    assert!(res_json.success);
+    assert!(res_json.error_message.is_none());
+
+    // Validate that we have moved out of the lobby.
+    validate_state_if(state, &game_id, |game_manager| {
+        assert_eq!(game_manager.get_state(0).phase, GamePhase::Starting);
+    });
+}
