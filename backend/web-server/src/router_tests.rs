@@ -13,7 +13,7 @@ use regex::Regex;
 use rocket::http::Cookie;
 use rocket::{
     http::{ContentType, Status},
-    local::blocking::Client,
+    local::blocking::{Client, LocalResponse},
 };
 use smallvec::smallvec;
 use std::fs::{read, read_to_string};
@@ -115,6 +115,28 @@ where
     let game_manager = game_manager.unwrap();
 
     predicate(&*game_manager);
+}
+
+fn expect_valid_action_response(res: LocalResponse) {
+    assert_eq!(res.status(), Status::Ok);
+
+    let res_json = res.into_json();
+    assert!(res_json.is_some());
+    let res_json: ActionResponse = res_json.unwrap();
+
+    assert!(res_json.success);
+    assert!(res_json.error_message.is_none());
+}
+
+fn expect_invalid_action_response(res: LocalResponse) {
+    assert_eq!(res.status(), Status::Ok);
+
+    let res_json = res.into_json();
+    assert!(res_json.is_some());
+    let res_json: ActionResponse = res_json.unwrap();
+
+    assert_eq!(res_json.success, false);
+    assert!(res_json.error_message.is_some());
 }
 
 #[test]
@@ -314,13 +336,7 @@ fn router_change_player_name() {
         .private_cookie(cookies[0].clone())
         .json(&change_name_request)
         .dispatch();
-
-    assert_eq!(res.status(), Status::Ok);
-    let res_json = res.into_json();
-    assert!(res_json.is_some());
-    let res_json: ActionResponse = res_json.unwrap();
-    assert!(res_json.success);
-    assert!(res_json.error_message.is_none());
+    expect_valid_action_response(res);
 
     // Changing the name of the first player to the same name should fail.
     let res = client
@@ -328,13 +344,7 @@ fn router_change_player_name() {
         .private_cookie(cookies[0].clone())
         .json(&change_name_request)
         .dispatch();
-
-    assert_eq!(res.status(), Status::Ok);
-    let res_json = res.into_json();
-    assert!(res_json.is_some());
-    let res_json: ActionResponse = res_json.unwrap();
-    assert_eq!(res_json.success, false);
-    assert!(res_json.error_message.is_some());
+    expect_invalid_action_response(res);
 
     // Change the name of the second player.
     let change_name_request = ChangeNameRequest {
@@ -345,13 +355,7 @@ fn router_change_player_name() {
         .private_cookie(cookies[1].clone())
         .json(&change_name_request)
         .dispatch();
-
-    assert_eq!(res.status(), Status::Ok);
-    let res_json = res.into_json();
-    assert!(res_json.is_some());
-    let res_json: ActionResponse = res_json.unwrap();
-    assert!(res_json.success);
-    assert!(res_json.error_message.is_none());
+    expect_valid_action_response(res);
 
     // Change the name of the third player to an existing name fails.
     let res = client
@@ -359,13 +363,7 @@ fn router_change_player_name() {
         .private_cookie(cookies[2].clone())
         .json(&change_name_request)
         .dispatch();
-
-    assert_eq!(res.status(), Status::Ok);
-    let res_json = res.into_json();
-    assert!(res_json.is_some());
-    let res_json: ActionResponse = res_json.unwrap();
-    assert_eq!(res_json.success, false);
-    assert!(res_json.error_message.is_some());
+    expect_invalid_action_response(res);
 
     // Validate final state.
     validate_state_if(state, &game_id, |game_manager| {
@@ -489,13 +487,7 @@ fn router_change_player_color() {
         .private_cookie(cookies[0].clone())
         .json(&change_color_request)
         .dispatch();
-
-    assert_eq!(res.status(), Status::Ok);
-    let res_json = res.into_json();
-    assert!(res_json.is_some());
-    let res_json: ActionResponse = res_json.unwrap();
-    assert!(res_json.success);
-    assert!(res_json.error_message.is_none());
+    expect_valid_action_response(res);
 
     // Changing the color of the first player to the same color should fail.
     let res = client
@@ -503,13 +495,7 @@ fn router_change_player_color() {
         .private_cookie(cookies[0].clone())
         .json(&change_color_request)
         .dispatch();
-
-    assert_eq!(res.status(), Status::Ok);
-    let res_json = res.into_json();
-    assert!(res_json.is_some());
-    let res_json: ActionResponse = res_json.unwrap();
-    assert_eq!(res_json.success, false);
-    assert!(res_json.error_message.is_some());
+    expect_invalid_action_response(res);
 
     // Change the color of the second player.
     let change_color_request = ChangeColorRequest {
@@ -520,13 +506,7 @@ fn router_change_player_color() {
         .private_cookie(cookies[1].clone())
         .json(&change_color_request)
         .dispatch();
-
-    assert_eq!(res.status(), Status::Ok);
-    let res_json = res.into_json();
-    assert!(res_json.is_some());
-    let res_json: ActionResponse = res_json.unwrap();
-    assert!(res_json.success);
-    assert!(res_json.error_message.is_none());
+    expect_valid_action_response(res);
 
     // Change the color of the third player to an existing color fails.
     let res = client
@@ -534,13 +514,7 @@ fn router_change_player_color() {
         .private_cookie(cookies[2].clone())
         .json(&change_color_request)
         .dispatch();
-
-    assert_eq!(res.status(), Status::Ok);
-    let res_json = res.into_json();
-    assert!(res_json.is_some());
-    let res_json: ActionResponse = res_json.unwrap();
-    assert_eq!(res_json.success, false);
-    assert!(res_json.error_message.is_some());
+    expect_invalid_action_response(res);
 
     // Validate final state.
     validate_state_if(state, &game_id, |game_manager| {
@@ -597,13 +571,7 @@ fn router_set_player_ready() {
             .private_cookie(cookie.clone())
             .json(&set_player_ready_request)
             .dispatch();
-
-        assert_eq!(res.status(), Status::Ok);
-        let res_json = res.into_json();
-        assert!(res_json.is_some());
-        let res_json: ActionResponse = res_json.unwrap();
-        assert!(res_json.success);
-        assert!(res_json.error_message.is_none());
+        expect_valid_action_response(res);
     });
 
     validate_state_if(state, &game_id, |game_manager| {
@@ -626,13 +594,7 @@ fn router_set_player_ready() {
         .private_cookie(cookies[0].clone())
         .json(&set_player_ready_request)
         .dispatch();
-
-    assert_eq!(res.status(), Status::Ok);
-    let res_json = res.into_json();
-    assert!(res_json.is_some());
-    let res_json: ActionResponse = res_json.unwrap();
-    assert!(res_json.success);
-    assert!(res_json.error_message.is_none());
+    expect_valid_action_response(res);
 
     // Validate that we are still in the lobby.
     validate_state_if(state, &game_id, |game_manager| {
@@ -646,13 +608,7 @@ fn router_set_player_ready() {
         .private_cookie(cookies[0].clone())
         .json(&set_player_ready_request)
         .dispatch();
-
-    assert_eq!(res.status(), Status::Ok);
-    let res_json = res.into_json();
-    assert!(res_json.is_some());
-    let res_json: ActionResponse = res_json.unwrap();
-    assert!(res_json.success);
-    assert!(res_json.error_message.is_none());
+    expect_valid_action_response(res);
 
     // Validate that we have moved out of the lobby.
     validate_state_if(state, &game_id, |game_manager| {
@@ -666,13 +622,7 @@ fn router_set_player_ready() {
         .private_cookie(cookies[0].clone())
         .json(&set_player_ready_request)
         .dispatch();
-
-    assert_eq!(res.status(), Status::Ok);
-    let res_json = res.into_json();
-    assert!(res_json.is_some());
-    let res_json: ActionResponse = res_json.unwrap();
-    assert_eq!(res_json.success, false);
-    assert!(res_json.error_message.is_some());
+    expect_invalid_action_response(res);
 }
 
 #[test]
@@ -705,13 +655,7 @@ fn router_select_destination_cards() {
             .private_cookie(cookie.clone())
             .json(&set_player_ready_request)
             .dispatch();
-
-        assert_eq!(res.status(), Status::Ok);
-        let res_json = res.into_json();
-        assert!(res_json.is_some());
-        let res_json: ActionResponse = res_json.unwrap();
-        assert!(res_json.success);
-        assert!(res_json.error_message.is_none());
+        expect_valid_action_response(res);
     }
 
     validate_state_if(state, &game_id, |game_manager| {
@@ -730,13 +674,7 @@ fn router_select_destination_cards() {
         .private_cookie(cookies[2].clone())
         .json(&select_destination_cards_request)
         .dispatch();
-
-    assert_eq!(res.status(), Status::Ok);
-    let res_json = res.into_json();
-    assert!(res_json.is_some());
-    let res_json: ActionResponse = res_json.unwrap();
-    assert_eq!(res_json.success, false);
-    assert!(res_json.error_message.is_some());
+    expect_invalid_action_response(res);
 
     // Make all players select their destination cards.
     for cookie in &cookies {
@@ -748,13 +686,7 @@ fn router_select_destination_cards() {
             .private_cookie(cookie.clone())
             .json(&select_destination_cards_request)
             .dispatch();
-
-        assert_eq!(res.status(), Status::Ok);
-        let res_json = res.into_json();
-        assert!(res_json.is_some());
-        let res_json: ActionResponse = res_json.unwrap();
-        assert!(res_json.success);
-        assert!(res_json.error_message.is_none());
+        expect_valid_action_response(res);
     }
 
     validate_state_if(state, &game_id, |game_manager| {
