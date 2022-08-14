@@ -388,13 +388,11 @@ impl Manager {
             return;
         }
 
-        let map = self.map.as_mut().unwrap();
-
         self.phase = GamePhase::Done;
         let all_longest_routes: SmallVec<[u16; MAX_PLAYERS]> = self
             .players
             .iter_mut()
-            .map(|player| player.finalize_game(map))
+            .map(|player| player.finalize_game())
             .collect();
         let max_longest_route = *all_longest_routes.iter().max().unwrap();
 

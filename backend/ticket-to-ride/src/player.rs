@@ -327,6 +327,21 @@ impl Player {
         self.public.turn_actions.description.push(description);
     }
 
+    fn check_and_update_fulfilled_destination_cards(&mut self, map: &mut Map) {
+        let player_id = self.id();
+
+        self.private
+            .selected_destination_cards
+            .iter_mut()
+            .filter(|destination_card| !destination_card.fulfilled)
+            .filter(|destination_card| {
+                map.has_player_fulfilled_destination(destination_card.destination, player_id)
+            })
+            .for_each(|destination_card| {
+                destination_card.fulfilled = true;
+            });
+    }
+
     fn claimed_route_description(
         &self,
         claimed_route: &ClaimedRoute,
@@ -437,6 +452,8 @@ impl Player {
             map.claim_route_for_player(route, parallel_route_index, &cards, self.public.id)?;
 
         // At this point, we have successfully claimed the route. Some player bookkeeping is in order.
+
+        self.check_and_update_fulfilled_destination_cards(map);
 
         self.replace_turn_action(
             turn,
@@ -802,14 +819,9 @@ impl Player {
     /// has fulfilled the given cards, or not.
     ///
     /// Finally, calculates the player's longest route, and returns that length.
-    pub fn finalize_game(&mut self, map: &mut Map) -> u16 {
-        // TODO: Maybe check whether a destination card is fulfilled everytime we claim a route.
-        // With the new proposed `fulfilled` boolean field in `DestinationCard`, this could
-        // provide feedback to the player that a destination card is indeed fulfilled as the game is going.
-        // Note though that the destination bonus/penalties should still be tallied at the end.
-
+    pub fn finalize_game(&mut self) -> u16 {
         for destination_card in &self.private.selected_destination_cards {
-            if map.has_player_fulfilled_destination(destination_card.destination, self.id()) {
+            if destination_card.fulfilled {
                 self.public.points += destination_card.points as i16;
             } else {
                 self.public.points -= destination_card.points as i16;
@@ -1788,6 +1800,18 @@ mod tests {
         let mut card_dealer = CardDealer::new();
 
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
+        player.private.selected_destination_cards = vec![
+            DestinationCard {
+                destination: (City::Toronto, City::Chicago),
+                points: 3,
+                fulfilled: false,
+            },
+            DestinationCard {
+                destination: (City::NewOrleans, City::Vancouver),
+                points: 25,
+                fulfilled: false,
+            },
+        ];
 
         player.private.train_cards.insert(TrainColor::Wild, 1);
         player.private.train_cards.insert(TrainColor::Black, 2);
@@ -1803,6 +1827,15 @@ mod tests {
                 &mut card_dealer
             ),
             Ok(true)
+        );
+
+        assert_eq!(
+            player.private.selected_destination_cards[0].fulfilled,
+            false
+        );
+        assert_eq!(
+            player.private.selected_destination_cards[1].fulfilled,
+            false
         );
 
         let route = (City::Toronto, City::Pittsburgh);
@@ -1825,6 +1858,12 @@ mod tests {
             Ok(true)
         );
 
+        assert!(player.private.selected_destination_cards[0].fulfilled);
+        assert_eq!(
+            player.private.selected_destination_cards[1].fulfilled,
+            false
+        );
+
         let route = (City::NewOrleans, City::Atlanta);
         let parallel_route_index = 1;
         let cards = vec![TrainColor::Yellow; 4];
@@ -1845,20 +1884,15 @@ mod tests {
             Ok(true)
         );
 
+        assert!(player.private.selected_destination_cards[0].fulfilled);
+        assert_eq!(
+            player.private.selected_destination_cards[1].fulfilled,
+            false
+        );
+
         let points = player.public.points;
 
-        player.private.selected_destination_cards = vec![
-            DestinationCard {
-                destination: (City::Toronto, City::Chicago),
-                points: 3,
-            },
-            DestinationCard {
-                destination: (City::NewOrleans, City::Vancouver),
-                points: 25,
-            },
-        ];
-
-        let longest_route = player.finalize_game(&mut map);
+        let longest_route = player.finalize_game();
         // Chicago -> Pittsburgh = 3.
         // Pittsburgh -> Toronto = 2.
         assert_eq!(longest_route, 5);

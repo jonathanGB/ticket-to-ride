@@ -84,7 +84,6 @@ impl TrainColor {
     }
 }
 
-// TODO: Add a boolean field `fulfilled`.
 /// Encapsulates information about a destination card.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct DestinationCard {
@@ -93,6 +92,10 @@ pub struct DestinationCard {
     /// How many points are granted once this card is fulfilled.
     /// If not fulfilled, the same amount will rather be substracted.
     pub points: u8,
+    /// Whether the destination card is fulfilled by the player holding it.
+    ///
+    /// By default, this is `false`. Only selected cards can potentially become `true`.
+    pub fulfilled: bool,
 }
 
 /// Convenience macro to generate a destination card.
@@ -101,6 +104,7 @@ macro_rules! destination_card {
         DestinationCard {
             destination: ($start, $end),
             points: $points,
+            fulfilled: false,
         }
     };
 }
@@ -470,6 +474,7 @@ impl CardDealer {
     ///     DestinationCard {
     ///         destination: (City::Chicago, City::SantaFe),
     ///         points: 9,
+    ///         fulfilled: false,
     ///     },
     /// ];
     ///
