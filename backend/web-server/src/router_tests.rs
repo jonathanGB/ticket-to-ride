@@ -9,6 +9,7 @@ use crate::rocket;
 use crate::router::*;
 use crate::STATIC_FILES_PATH;
 
+use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
 use regex::Regex;
 use rocket::{
     http::{ContentType, Cookie, Status},
@@ -1057,4 +1058,133 @@ fn router_claim_route() {
     }
 
     assert!(routes_to_claim.into_iter().all(|(_, _, claimed)| claimed));
+}
+
+#[test]
+fn router_get_game_state_unauthenticated() {
+    let client = Client::untracked(rocket()).expect("valid rocket");
+    let game_id = create_game(&client);
+
+    let state = client.rocket().state::<GameIdManagerMapping>().unwrap();
+    validate_state_num_of_players(state, &game_id, 0);
+
+    // Get the state, but no cookies provided to authenticate.
+    let res = client.get(uri!(get_game_state(game_id))).dispatch();
+
+    assert_eq!(res.status(), Status::Unauthorized);
+}
+
+#[test]
+fn router_get_game_state_unauthorized() {
+    let client = Client::untracked(rocket()).expect("valid rocket");
+    let game_id = create_game(&client);
+    let wrong_game_id = Uuid::new_v4();
+    let player_id = 0;
+    let identifier = Identifier::new(wrong_game_id, player_id);
+    let cookie = Cookie::new(COOKIE_IDENTIFIER_NAME, identifier.to_string());
+
+    let state = client.rocket().state::<GameIdManagerMapping>().unwrap();
+    validate_state_num_of_players(state, &game_id, 0);
+
+    // Load one player into the game. This player has the same ID as `player_id`.
+    let res = client.get(uri!(load_game(game_id))).dispatch();
+    assert_eq!(res.status(), Status::Ok);
+
+    // Get game state, but cookie authorizes for a different game ID.
+    let res = client
+        .get(uri!(get_game_state(game_id)))
+        .private_cookie(cookie)
+        .dispatch();
+
+    assert_eq!(res.status(), Status::Unauthorized);
+}
+
+#[test]
+fn router_get_game_state_game_not_found() {
+    let client = Client::untracked(rocket()).expect("valid rocket");
+    let game_id = Uuid::new_v4();
+    let player_id = 0;
+    let identifier = Identifier::new(game_id, player_id);
+    let cookie = Cookie::new(COOKIE_IDENTIFIER_NAME, identifier.to_string());
+
+    // Get game state, but no such game exists.
+    let res = client
+        .get(uri!(get_game_state(game_id)))
+        .private_cookie(cookie)
+        .dispatch();
+
+    assert_eq!(res.status(), Status::NotFound);
+}
+
+#[test]
+fn router_get_game_state_success() {
+    let client = Client::untracked(rocket()).expect("valid rocket");
+    let game_id = create_game(&client);
+    let player_id = 0;
+    let other_player_id = 1;
+    let identifier = Identifier::new(game_id, player_id);
+    let other_identifier = Identifier::new(game_id, other_player_id);
+    let cookie = Cookie::new(COOKIE_IDENTIFIER_NAME, identifier.to_string());
+    let other_cookie = Cookie::new(COOKIE_IDENTIFIER_NAME, other_identifier.to_string());
+    let state = client.rocket().state::<GameIdManagerMapping>().unwrap();
+    validate_state_num_of_players(state, &game_id, 0);
+
+    // Load one player into the game. This player has the same ID as `player_id`.
+    let res = client.get(uri!(load_game(game_id))).dispatch();
+    assert_eq!(res.status(), Status::Ok);
+
+    // Load a second player into the game. This player has the same ID as `other_player_id`.
+    let res = client.get(uri!(load_game(game_id))).dispatch();
+    assert_eq!(res.status(), Status::Ok);
+
+    validate_state_num_of_players(state, &game_id, 2);
+
+    // Get game state for `player_id`.
+    let res = client
+        .get(uri!(get_game_state(game_id)))
+        .private_cookie(cookie)
+        .dispatch();
+
+    assert_eq!(res.status(), Status::Ok);
+    let res_body_str = res.into_string();
+    assert!(res_body_str.is_some());
+    let res_body_str = res_body_str.unwrap();
+
+    // Get game state for `other_player_id`.
+    let other_res = client
+        .get(uri!(get_game_state(game_id)))
+        .private_cookie(other_cookie)
+        .dispatch();
+
+    assert_eq!(other_res.status(), Status::Ok);
+    let other_res_body_str = other_res.into_string();
+    assert!(other_res_body_str.is_some());
+    let other_res_body_str = other_res_body_str.unwrap();
+
+    // Both players should have different states returned.
+    assert_ne!(res_body_str, other_res_body_str);
+
+    validate_state_if(state, &game_id, |game_manager| {
+        let state_json_str = serde_json::to_string(&game_manager.get_state(player_id));
+        assert!(
+            state_json_str.is_ok(),
+            "Could not parse `GameState` as JSON. Error: {:?}",
+            state_json_str
+        );
+        let state_json_str = state_json_str.unwrap();
+
+        assert_str_eq!(res_body_str, state_json_str);
+    });
+
+    validate_state_if(state, &game_id, |game_manager| {
+        let other_state_json_str = serde_json::to_string(&game_manager.get_state(other_player_id));
+        assert!(
+            other_state_json_str.is_ok(),
+            "Could not parse `GameState` as JSON. Error: {:?}",
+            other_state_json_str
+        );
+        let other_state_json_str = other_state_json_str.unwrap();
+
+        assert_str_eq!(other_res_body_str, other_state_json_str);
+    });
 }

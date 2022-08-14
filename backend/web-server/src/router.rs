@@ -197,7 +197,6 @@ pub fn claim_route(
     Json(write_controller.claim_route(claim_route_request.into_inner()))
 }
 
-// TODO: Add integration tests.
 /// Retrieves the game state. The player must be authenticated to do so.
 ///
 /// More details in [`ticket_to_ride::manager::Manager::get_state`].

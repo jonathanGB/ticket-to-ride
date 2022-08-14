@@ -17,3 +17,4 @@ regex = "1.6"
 
 [dev-dependencies]
 strum = "0.24"
+pretty_assertions = "1.2"
