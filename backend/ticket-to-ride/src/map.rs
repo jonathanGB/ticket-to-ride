@@ -144,7 +144,7 @@ impl Map {
             ),
             Self::build_bidirectional_city_route_mapping(
                 (City::Atlanta, City::NewOrleans),
-                parallel_routes! {5, Orange, Yellow},
+                parallel_routes! {4, Orange, Yellow},
             ),
             Self::build_bidirectional_city_route_mapping(
                 (City::Atlanta, City::Raleigh),
