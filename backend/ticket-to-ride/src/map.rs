@@ -732,7 +732,7 @@ impl Map {
             self.all_parallel_routes
                 .range(Self::get_range_of_routes_starting_at_city(city))
                 .filter_map(|((_, end), parallel_routes)| {
-                    if cities_visited[*end as usize - 1] {
+                    if cities_visited[*end as usize] {
                         return None;
                     }
 
@@ -740,7 +740,7 @@ impl Map {
                         .iter()
                         .any(|route| route.claimer() == Some(player_id))
                     {
-                        cities_visited[*end as usize - 1] = true;
+                        cities_visited[*end as usize] = true;
                         Some(end)
                     } else {
                         None
@@ -782,7 +782,7 @@ impl Map {
 
         // Maps each city to a list of adjacent cities, including the length of the route connecting the two.
         // Start cities are indexed by their usize representation.
-        let mut all_routes: [SmallVec<[(City, u8); MAX_ROUTES_PER_CITY]>; City::COUNT + 1] =
+        let mut all_routes: [SmallVec<[(City, u8); MAX_ROUTES_PER_CITY]>; City::COUNT] =
             array_init(|_| SmallVec::new());
 
         // Deduplicate the cities that will be explored.
@@ -828,7 +828,7 @@ impl Map {
 
     fn get_longest_route_from_city(
         start: City,
-        all_routes: &[SmallVec<[(City, u8); 7]>; City::COUNT + 1],
+        all_routes: &[SmallVec<[(City, u8); MAX_ROUTES_PER_CITY]>; City::COUNT],
         routes_visited: HashSet<CityToCity>,
         current_length: u16,
     ) -> u16 {

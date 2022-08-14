@@ -3,9 +3,6 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 use strum::EnumCount;
 use strum_macros::{Display, EnumCount as EnumCountMacro};
 
-// TODO: Consider making the cities 0-indexed.
-// If we do this, we can remove the `COUNT+1` fix in the longest route algorithm.
-
 /// All the different cities on the map.
 ///
 /// # JSON
@@ -26,56 +23,56 @@ use strum_macros::{Display, EnumCount as EnumCountMacro};
 )]
 #[repr(u8)]
 pub enum City {
-    Atlanta = 1,
-    Boston = 2,
-    Calgary = 3,
-    Charleston = 4,
-    Chicago = 5,
-    Dallas = 6,
-    Denver = 7,
-    Duluth = 8,
+    Atlanta = 0,
+    Boston = 1,
+    Calgary = 2,
+    Charleston = 3,
+    Chicago = 4,
+    Dallas = 5,
+    Denver = 6,
+    Duluth = 7,
     #[strum(serialize = "El Paso")]
-    ElPaso = 9,
-    Helena = 10,
-    Houston = 11,
+    ElPaso = 8,
+    Helena = 9,
+    Houston = 10,
     #[strum(serialize = "Kansas City")]
-    KansasCity = 12,
+    KansasCity = 11,
     #[strum(serialize = "Las Vegas")]
-    LasVegas = 13,
+    LasVegas = 12,
     #[strum(serialize = "Little Rock")]
-    LittleRock = 14,
+    LittleRock = 13,
     #[strum(serialize = "Los Angeles")]
-    LosAngeles = 15,
-    Miami = 16,
+    LosAngeles = 14,
+    Miami = 15,
     #[strum(serialize = "Montréal")]
-    Montreal = 17,
-    Nashville = 18,
+    Montreal = 16,
+    Nashville = 17,
     #[strum(serialize = "New Orleans")]
-    NewOrleans = 19,
+    NewOrleans = 18,
     #[strum(serialize = "New York")]
-    NewYork = 20,
+    NewYork = 19,
     #[strum(serialize = "Oklahoma City")]
-    OklahomaCity = 21,
-    Omaha = 22,
-    Phoenix = 23,
-    Pittsburgh = 24,
-    Portland = 25,
-    Raleigh = 26,
+    OklahomaCity = 20,
+    Omaha = 21,
+    Phoenix = 22,
+    Pittsburgh = 23,
+    Portland = 24,
+    Raleigh = 25,
     #[strum(serialize = "Saint Louis")]
-    SaintLouis = 27,
+    SaintLouis = 26,
     #[strum(serialize = "Salt Lake City")]
-    SaltLakeCity = 28,
+    SaltLakeCity = 27,
     #[strum(serialize = "San Francisco")]
-    SanFrancisco = 29,
+    SanFrancisco = 28,
     #[strum(serialize = "Santa Fe")]
-    SantaFe = 30,
+    SantaFe = 29,
     #[strum(serialize = "Sault St. Marie")]
-    SaultStMarie = 31,
-    Seattle = 32,
-    Toronto = 33,
-    Vancouver = 34,
-    Washington = 35,
-    Winnipeg = 36,
+    SaultStMarie = 30,
+    Seattle = 31,
+    Toronto = 32,
+    Vancouver = 33,
+    Washington = 34,
+    Winnipeg = 35,
 }
 
 /// Top-level representation of a connection between two cities.
@@ -116,22 +113,22 @@ mod tests {
 
     #[test]
     fn city_to_json() -> serde_json::Result<()> {
-        assert_eq!(serde_json::to_string(&City::Duluth)?, "8");
-        assert_eq!(serde_json::to_string(&City::Montreal)?, "17");
+        assert_eq!(serde_json::to_string(&City::Duluth)?, "7");
+        assert_eq!(serde_json::to_string(&City::Montreal)?, "16");
 
         Ok(())
     }
 
     #[test]
     fn json_to_city() -> serde_json::Result<()> {
-        assert_eq!(serde_json::from_str::<City>("16")?, City::Miami);
-        assert_eq!(serde_json::from_str::<City>("23")?, City::Phoenix);
+        assert_eq!(serde_json::from_str::<City>("15")?, City::Miami);
+        assert_eq!(serde_json::from_str::<City>("22")?, City::Phoenix);
 
         Ok(())
     }
 
     #[test]
     fn invalid_json_to_city() {
-        assert!(serde_json::from_str::<City>("0").is_err());
+        assert!(serde_json::from_str::<City>("36").is_err());
     }
 }
