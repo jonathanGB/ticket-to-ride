@@ -172,6 +172,15 @@ pub fn draw_open_train_card(
     Json(write_controller.draw_open_train_card(draw_open_train_card_request.into_inner()))
 }
 
+/// Allows a player to draw one train card from the close-faced deck.
+/// The player must be authenticated to do so.
+///
+/// More details in [`ticket_to_ride::manager::Manager::draw_close_train_card`].
+#[post("/game/<_>/player/draw_close_train_card")]
+pub fn draw_close_train_card(mut write_controller: WriteController) -> Json<ActionResponse> {
+    Json(write_controller.draw_close_train_card())
+}
+
 // TODO: Add integration tests.
 /// Retrieves the game state. The player must be authenticated to do so.
 ///

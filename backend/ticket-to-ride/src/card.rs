@@ -17,10 +17,12 @@ pub const NUM_OPEN_TRAIN_CARDS: usize = 5;
 const NUM_WILD_CARDS: usize = 14;
 const NUM_NON_WILD_CARDS: usize = 12;
 const WILD_CARD_LIMIT: usize = 3;
-const TOTAL_NUM_TRAIN_CARDS: usize = 110;
+/// How many train cards there are in the game.
+pub const TOTAL_NUM_TRAIN_CARDS: usize = 110;
 /// How many destination cards are drawn by a player.
 pub const NUM_DRAWN_DESTINATION_CARDS: usize = 3;
-const NUM_DRAWN_INITIAL_TRAIN_CARDS: usize = 4;
+/// How many train cards each player draws when they start the game.
+pub const NUM_DRAWN_INITIAL_TRAIN_CARDS: usize = 4;
 
 /// Represents the different variants of train cards.
 ///

@@ -20,7 +20,9 @@ use std::{
     path::Path,
 };
 use ticket_to_ride::{
-    card::{TrainColor, NUM_OPEN_TRAIN_CARDS},
+    card::{
+        TrainColor, NUM_DRAWN_INITIAL_TRAIN_CARDS, NUM_OPEN_TRAIN_CARDS, TOTAL_NUM_TRAIN_CARDS,
+    },
     manager::{GamePhase, Manager},
     player::PlayerColor,
 };
@@ -866,6 +868,89 @@ fn router_draw_open_train_card() {
                 expect_valid_action_response(res);
                 validate_state_turn(state, &game_id, Some(i + 1));
                 break;
+            }
+        }
+    }
+}
+
+#[test]
+fn router_draw_close_train_card() {
+    let client = Client::untracked(rocket()).expect("valid rocket");
+    let game_id = create_game(&client);
+
+    // Load five unique players.
+    let num_players = 5;
+    let cookies: Vec<_> = (1..=num_players)
+        .map(|_| {
+            let res = client.get(uri!(load_game(game_id))).dispatch();
+            assert_eq!(res.status(), Status::Ok);
+
+            let cookie = res.cookies().get_private(COOKIE_IDENTIFIER_NAME);
+            assert!(cookie.is_some());
+            cookie.unwrap()
+        })
+        .collect();
+    assert_eq!(cookies.len(), 5);
+
+    let state = client.rocket().state::<GameIdManagerMapping>().unwrap();
+    validate_state_num_of_players(state, &game_id, 5);
+
+    // Set all players as ready.
+    for cookie in &cookies {
+        let set_player_ready_request = SetPlayerReadyRequest { is_ready: true };
+        let res = client
+            .put(uri!(set_player_ready(game_id)))
+            .private_cookie(cookie.clone())
+            .json(&set_player_ready_request)
+            .dispatch();
+        expect_valid_action_response(res);
+    }
+
+    validate_state_phase(state, &game_id, GamePhase::Starting);
+    validate_state_turn(state, &game_id, None);
+
+    // Make all players select their destination cards.
+    for cookie in &cookies {
+        let select_destination_cards_request = SelectDestinationCardsRequest {
+            destination_cards_decisions: smallvec![true, false, true],
+        };
+        let res = client
+            .put(uri!(select_destination_cards(game_id)))
+            .private_cookie(cookie.clone())
+            .json(&select_destination_cards_request)
+            .dispatch();
+        expect_valid_action_response(res);
+    }
+
+    validate_state_phase(state, &game_id, GamePhase::Playing);
+    validate_state_turn(state, &game_id, Some(0));
+
+    let cookies = reorder_cookies(state, &game_id, cookies);
+
+    // Make all players draw close train cards, until there is none left.
+    let train_cards_left =
+        TOTAL_NUM_TRAIN_CARDS - NUM_OPEN_TRAIN_CARDS - NUM_DRAWN_INITIAL_TRAIN_CARDS * num_players;
+    let mut train_cards_drawn = 0;
+    'outer: loop {
+        for cookie in &cookies {
+            // Two draws per player per turn.
+            for _ in 0..2 {
+                let res = client
+                    .post(uri!(draw_close_train_card(game_id)))
+                    .private_cookie(cookie.clone())
+                    .dispatch();
+
+                if train_cards_drawn == train_cards_left {
+                    expect_invalid_action_response(res);
+                    validate_state_turn(state, &game_id, Some(train_cards_drawn / 2));
+
+                    break 'outer;
+                }
+
+                train_cards_drawn += 1;
+
+                validate_state_turn(state, &game_id, Some(train_cards_drawn / 2));
+                expect_valid_action_response(res);
             }
         }
     }

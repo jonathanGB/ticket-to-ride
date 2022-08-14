@@ -513,6 +513,33 @@ impl Manager {
 
         Ok(())
     }
+
+    /// Allows a given player to draw a train card from the close-faced deck.
+    ///
+    /// Returns an `Err` if either:
+    ///   * We are not in [`GamePhase::Playing`], nor [`GamePhase::LastTurn`].
+    ///   * This is not the player's turn.
+    ///   * [`Player::draw_close_train_card`] failed.
+    ///
+    /// Otherwise, returns `Ok(())`, and increments the turn (if the turn is over).
+    /// As all actions that mark the end of the turn, we subsequently verify whether the
+    /// player is done playing. More details in `Manager::maybe_player_and_game_done`.
+    pub fn draw_close_train_card(&mut self, player_id: usize) -> ManagerActionResult {
+        self.has_turn_based_game_started()?;
+
+        let player_index = self.get_player_index(player_id).unwrap();
+        self.is_player_turn(player_index)?;
+
+        let is_turn_over = self.players[player_index]
+            .draw_close_train_card(self.turn.unwrap(), self.card_dealer.as_mut().unwrap())?;
+
+        if is_turn_over {
+            self.increment_turn();
+            self.maybe_player_and_game_done(player_index);
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -1063,6 +1090,15 @@ mod tests {
             .get_mut_open_train_card_deck()[card_index] = Some(train_card);
     }
 
+    fn substitute_close_train_card(manager: &mut Manager, train_card: TrainColor) {
+        manager
+            .card_dealer
+            .as_mut()
+            .unwrap()
+            .get_mut_close_train_card_deck()
+            .push(train_card);
+    }
+
     fn count_train_card_player_has(
         manager: &mut Manager,
         player_index: usize,
@@ -1244,6 +1280,225 @@ mod tests {
         );
         assert_eq!(m.turn, Some(2));
 
+        assert!(m.players[0].get_public_state().is_done_playing);
+        assert!(m.players[1].get_public_state().is_done_playing);
+        assert_eq!(m.phase, GamePhase::Done);
+    }
+
+    #[test]
+    fn manager_draw_close_train_card_starting_phase() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        assert_eq!(m.phase, GamePhase::Starting);
+
+        assert!(m.draw_close_train_card(player_id).is_err());
+        assert!(m.draw_close_train_card(other_player_id).is_err());
+    }
+
+    #[test]
+    fn manager_draw_close_train_card_done_phase() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        m.phase = GamePhase::Done;
+
+        assert!(m.draw_close_train_card(player_id).is_err());
+        assert!(m.draw_close_train_card(other_player_id).is_err());
+    }
+
+    #[test]
+    fn manager_draw_close_train_playing_phase() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        m.phase = GamePhase::Playing;
+        m.turn = Some(0);
+
+        let (player_id_first, player_id_second) = if m.get_player_index(player_id) == Some(0) {
+            (player_id, other_player_id)
+        } else {
+            (other_player_id, player_id)
+        };
+
+        // Wrong turn.
+        assert!(m.draw_close_train_card(player_id_second).is_err());
+
+        // First player should work.
+        let train_card = TrainColor::Blue;
+        substitute_close_train_card(&mut m, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 0, train_card);
+
+        assert!(m.draw_close_train_card(player_id_first).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 0, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(0));
+
+        // Wrong turn.
+        assert!(m.draw_close_train_card(player_id_second).is_err());
+
+        // Drawing again should end the turn.
+        let train_card = TrainColor::Orange;
+        substitute_close_train_card(&mut m, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 0, train_card);
+
+        assert!(m.draw_close_train_card(player_id_first).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 0, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(1));
+
+        // Wrong turn, second player is now playing.
+        assert!(m.draw_close_train_card(player_id_first).is_err());
+
+        // Second player can now draw.
+        let train_card = TrainColor::Wild;
+        substitute_close_train_card(&mut m, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 1, train_card);
+
+        assert!(m.draw_close_train_card(player_id_second).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 1, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(1));
+
+        // And draw again, which ends the turn.
+        let train_card = TrainColor::Wild;
+        substitute_close_train_card(&mut m, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 1, train_card);
+
+        assert!(m.draw_close_train_card(player_id_second).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 1, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(2));
+
+        // Back to the first player.
+        let train_card = TrainColor::Blue;
+        substitute_close_train_card(&mut m, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 0, train_card);
+
+        assert!(m.draw_close_train_card(player_id_first).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 0, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(2));
+
+        // But now, simulate that the close-faced deck is empty.
+        m.card_dealer
+            .as_mut()
+            .unwrap()
+            .get_mut_close_train_card_deck()
+            .clear();
+        assert!(m.draw_close_train_card(player_id_first).is_err());
+        assert_eq!(m.turn, Some(2));
+    }
+
+    #[test]
+    fn manager_draw_close_train_last_turn() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        m.phase = GamePhase::LastTurn;
+        m.turn = Some(0);
+
+        let (player_id_first, player_id_second) = if m.get_player_index(player_id) == Some(0) {
+            (player_id, other_player_id)
+        } else {
+            (other_player_id, player_id)
+        };
+
+        assert_eq!(m.players[0].get_public_state().is_done_playing, false);
+        assert_eq!(m.players[1].get_public_state().is_done_playing, false);
+
+        // Wrong turn.
+        assert!(m.draw_close_train_card(player_id_second).is_err());
+
+        // Now, should work.
+        let train_card = TrainColor::Blue;
+        substitute_close_train_card(&mut m, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 0, train_card);
+
+        assert!(m.draw_close_train_card(player_id_first).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 0, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(0));
+        assert_eq!(m.players[0].get_public_state().is_done_playing, false);
+        assert_eq!(m.players[1].get_public_state().is_done_playing, false);
+
+        // Wrong turn.
+        assert!(m.draw_close_train_card(player_id_second).is_err());
+
+        // Drawing again should end the turn.
+        let train_card = TrainColor::Orange;
+        substitute_close_train_card(&mut m, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 0, train_card);
+
+        assert!(m.draw_close_train_card(player_id_first).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 0, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(1));
+        assert!(m.players[0].get_public_state().is_done_playing);
+        assert_eq!(m.players[1].get_public_state().is_done_playing, false);
+
+        // Wrong turn, second player is now playing.
+        assert!(m.draw_close_train_card(player_id_first).is_err());
+
+        // Second player can now draw.
+        let train_card = TrainColor::Wild;
+        substitute_close_train_card(&mut m, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 1, train_card);
+
+        assert!(m.draw_close_train_card(player_id_second).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 1, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(1));
+        assert!(m.players[0].get_public_state().is_done_playing);
+        assert_eq!(m.players[1].get_public_state().is_done_playing, false);
+
+        // And draw again, which ends the turn.
+        let train_card = TrainColor::White;
+        substitute_close_train_card(&mut m, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 1, train_card);
+
+        assert!(m.draw_close_train_card(player_id_second).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 1, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(2));
         assert!(m.players[0].get_public_state().is_done_playing);
         assert!(m.players[1].get_public_state().is_done_playing);
         assert_eq!(m.phase, GamePhase::Done);
