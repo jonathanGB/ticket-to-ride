@@ -1,5 +1,6 @@
 use crate::{
-    card::{CardDealer, CardDealerState, NUM_DRAWN_DESTINATION_CARDS},
+    card::{CardDealer, CardDealerState, TrainColor, NUM_DRAWN_DESTINATION_CARDS},
+    city::CityToCity,
     map::Map,
     player::{Player, PlayerColor, PlayerState},
 };
@@ -13,6 +14,7 @@ use strum::IntoEnumIterator;
 
 const MIN_PLAYERS: usize = 2;
 const MAX_PLAYERS: usize = 5;
+const CARS_THRESHOLD_TO_TRIGGER_LAST_TURN_TRANSITION: u8 = 3;
 
 #[derive(Clone, Copy, Serialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -535,6 +537,52 @@ impl Manager {
 
         if is_turn_over {
             self.increment_turn();
+            self.maybe_player_and_game_done(player_index);
+        }
+
+        Ok(())
+    }
+
+    /// Allows a given player to claim a route.
+    ///
+    /// Returns an `Err` if either:
+    ///   * We are not in [`GamePhase::Playing`], nor [`GamePhase::LastTurn`].
+    ///   * This is not the player's turn.
+    ///   * [`Player::claim_route`] failed.
+    ///
+    /// Otherwise, returns `Ok(())`, and increments the turn.
+    /// As all actions that mark the end of the turn, we subsequently verify whether the
+    /// player is done playing. More details in `Manager::maybe_player_and_game_done`.
+    pub fn claim_route(
+        &mut self,
+        player_id: usize,
+        route: CityToCity,
+        parallel_route_index: usize,
+        cards: Vec<TrainColor>,
+    ) -> ManagerActionResult {
+        self.has_turn_based_game_started()?;
+
+        let player_index = self.get_player_index(player_id).unwrap();
+        self.is_player_turn(player_index)?;
+
+        self.players[player_index].claim_route(
+            route,
+            parallel_route_index,
+            cards,
+            self.turn.unwrap(),
+            self.map.as_mut().unwrap(),
+            self.card_dealer.as_mut().unwrap(),
+        )?;
+
+        self.increment_turn();
+
+        // We don't mark the player as done if the route they claimed led to transitioning
+        // to [`GamePhase::LastTurn`] -- in that case, the player still has one turn left!
+        if self.phase == GamePhase::Playing
+            && self.players[player_index].cars() < CARS_THRESHOLD_TO_TRIGGER_LAST_TURN_TRANSITION
+        {
+            self.phase = GamePhase::LastTurn;
+        } else {
             self.maybe_player_and_game_done(player_index);
         }
 
@@ -1499,6 +1547,320 @@ mod tests {
             num_train_card + 1
         );
         assert_eq!(m.turn, Some(2));
+        assert!(m.players[0].get_public_state().is_done_playing);
+        assert!(m.players[1].get_public_state().is_done_playing);
+        assert_eq!(m.phase, GamePhase::Done);
+    }
+
+    #[test]
+    fn manager_claim_route_starting_phase() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        assert_eq!(m.phase, GamePhase::Starting);
+
+        let route = (City::Calgary, City::Winnipeg);
+        let parallel_route_index = 0;
+        let train_card = TrainColor::White;
+        let route_length = 6;
+        let cards = vec![train_card; route_length];
+
+        // Make both players have enough train cards to claim that route.
+        m.players[0]
+            .get_mut_private_state()
+            .train_cards
+            .entry(train_card)
+            .and_modify(|count| *count += route_length as u8);
+        m.players[0].get_mut_public_state().num_train_cards += route_length as u8;
+        m.players[1]
+            .get_mut_private_state()
+            .train_cards
+            .entry(train_card)
+            .and_modify(|count| *count += route_length as u8);
+        m.players[1].get_mut_public_state().num_train_cards += route_length as u8;
+
+        assert!(m
+            .claim_route(player_id, route, parallel_route_index, cards.clone())
+            .is_err());
+        assert!(m
+            .claim_route(other_player_id, route, parallel_route_index, cards)
+            .is_err());
+    }
+
+    #[test]
+    fn manager_claim_route_done_phase() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        m.phase = GamePhase::Done;
+
+        let route = (City::Calgary, City::Winnipeg);
+        let parallel_route_index = 0;
+        let train_card = TrainColor::White;
+        let route_length = 6;
+        let cards = vec![train_card; route_length];
+
+        // Make both players have enough train cards to claim that route.
+        m.players[0]
+            .get_mut_private_state()
+            .train_cards
+            .entry(train_card)
+            .and_modify(|count| *count += route_length as u8);
+        m.players[0].get_mut_public_state().num_train_cards += route_length as u8;
+        m.players[1]
+            .get_mut_private_state()
+            .train_cards
+            .entry(train_card)
+            .and_modify(|count| *count += route_length as u8);
+        m.players[1].get_mut_public_state().num_train_cards += route_length as u8;
+
+        assert!(m
+            .claim_route(player_id, route, parallel_route_index, cards.clone())
+            .is_err());
+        assert!(m
+            .claim_route(other_player_id, route, parallel_route_index, cards)
+            .is_err());
+    }
+
+    #[test]
+    fn manager_claim_route_playing_phase() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        m.phase = GamePhase::Playing;
+        m.turn = Some(0);
+
+        let (player_id_first, player_id_second) = if m.get_player_index(player_id) == Some(0) {
+            (player_id, other_player_id)
+        } else {
+            (other_player_id, player_id)
+        };
+
+        let route = (City::Calgary, City::Winnipeg);
+        let parallel_route_index = 0;
+        let train_card = TrainColor::White;
+        let route_length = 6;
+        let cards = vec![train_card; route_length];
+
+        // Make both players have enough train cards to claim that route.
+        m.players[0]
+            .get_mut_private_state()
+            .train_cards
+            .entry(train_card)
+            .and_modify(|count| *count += route_length as u8);
+        m.players[0].get_mut_public_state().num_train_cards += route_length as u8;
+        m.players[1]
+            .get_mut_private_state()
+            .train_cards
+            .entry(train_card)
+            .and_modify(|count| *count += route_length as u8);
+        m.players[1].get_mut_public_state().num_train_cards += route_length as u8;
+
+        // Wrong turn.
+        assert!(m
+            .claim_route(player_id_second, route, parallel_route_index, cards.clone())
+            .is_err());
+
+        // First player can claim the route.
+        assert!(m
+            .claim_route(player_id_first, route, parallel_route_index, cards.clone())
+            .is_ok());
+        assert_eq!(m.turn, Some(1));
+
+        // First player can't claim another route this turn.
+        let new_route = (City::LasVegas, City::SaltLakeCity);
+        let new_parallel_route_index = 0;
+        let new_train_card = TrainColor::Orange;
+        let new_route_length = 3;
+        let new_cards = vec![new_train_card; new_route_length];
+
+        m.players[0]
+            .get_mut_private_state()
+            .train_cards
+            .entry(new_train_card)
+            .and_modify(|count| *count += new_route_length as u8);
+        m.players[0].get_mut_public_state().num_train_cards += new_route_length as u8;
+
+        assert!(m
+            .claim_route(
+                player_id_first,
+                new_route,
+                new_parallel_route_index,
+                new_cards.clone()
+            )
+            .is_err());
+        assert_eq!(m.turn, Some(1));
+
+        // Second player cannot claim already claimed route.
+        assert!(m
+            .claim_route(player_id_second, route, parallel_route_index, cards.clone())
+            .is_err());
+
+        // But they can claim the new route.
+        m.players[1]
+            .get_mut_private_state()
+            .train_cards
+            .entry(new_train_card)
+            .and_modify(|count| *count += new_route_length as u8);
+        m.players[1].get_mut_public_state().num_train_cards += new_route_length as u8;
+
+        assert!(m
+            .claim_route(
+                player_id_second,
+                new_route,
+                new_parallel_route_index,
+                new_cards.clone()
+            )
+            .is_ok());
+        assert_eq!(m.turn, Some(2));
+        assert_eq!(m.phase, GamePhase::Playing);
+    }
+
+    #[test]
+    fn manager_claim_route_transition_to_last_turn_phase() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        m.phase = GamePhase::Playing;
+        m.turn = Some(0);
+
+        let (player_id_first, player_id_second) = if m.get_player_index(player_id) == Some(0) {
+            (player_id, other_player_id)
+        } else {
+            (other_player_id, player_id)
+        };
+
+        // Make both players have 9 cars left.
+        m.players[0].get_mut_public_state().cars = 9;
+        m.players[1].get_mut_public_state().cars = 9;
+
+        // First player can claim the route.
+        let route = (City::Calgary, City::Winnipeg);
+        let parallel_route_index = 0;
+        let train_card = TrainColor::White;
+        let route_length = 6;
+        let cards = vec![train_card; route_length];
+
+        m.players[0]
+            .get_mut_private_state()
+            .train_cards
+            .entry(train_card)
+            .and_modify(|count| *count += route_length as u8);
+        m.players[0].get_mut_public_state().num_train_cards += route_length as u8;
+
+        assert!(m
+            .claim_route(player_id_first, route, parallel_route_index, cards.clone())
+            .is_ok());
+        assert_eq!(m.players[0].cars(), 3);
+        assert_eq!(m.players[0].get_public_state().is_done_playing, false);
+        assert_eq!(m.players[1].get_public_state().is_done_playing, false);
+        assert_eq!(m.phase, GamePhase::Playing);
+
+        // Second player can claim a new route.
+        let route = (City::SaintLouis, City::Pittsburgh);
+        let parallel_route_index = 0;
+        let train_card = TrainColor::Green;
+        let route_length = 5;
+        let cards = vec![train_card; route_length];
+
+        m.players[1]
+            .get_mut_private_state()
+            .train_cards
+            .entry(train_card)
+            .and_modify(|count| *count += route_length as u8);
+        m.players[1].get_mut_public_state().num_train_cards += route_length as u8;
+
+        assert!(m
+            .claim_route(player_id_second, route, parallel_route_index, cards.clone())
+            .is_ok());
+        assert_eq!(m.players[1].cars(), 4);
+        assert_eq!(m.players[0].get_public_state().is_done_playing, false);
+        assert_eq!(m.players[1].get_public_state().is_done_playing, false);
+        assert_eq!(m.phase, GamePhase::Playing);
+
+        // First player claims another route.
+        // As the player now has less than 3 cars, we transition to the last turn phase.
+        let route = (City::Vancouver, City::Seattle);
+        let parallel_route_index = 1;
+        let train_card = TrainColor::Wild;
+        let route_length = 1;
+        let cards = vec![train_card; route_length];
+
+        m.players[0]
+            .get_mut_private_state()
+            .train_cards
+            .entry(train_card)
+            .and_modify(|count| *count += route_length as u8);
+        m.players[0].get_mut_public_state().num_train_cards += route_length as u8;
+
+        assert!(m
+            .claim_route(player_id_first, route, parallel_route_index, cards.clone())
+            .is_ok());
+        assert_eq!(m.players[0].cars(), 2);
+        assert_eq!(m.players[0].get_public_state().is_done_playing, false);
+        assert_eq!(m.players[1].get_public_state().is_done_playing, false);
+        assert_eq!(m.phase, GamePhase::LastTurn);
+
+        // Second player claims another route, which should be their last turn.
+        let route = (City::Raleigh, City::Nashville);
+        let parallel_route_index = 0;
+        let train_card = TrainColor::Black;
+        let route_length = 3;
+        let cards = vec![train_card; route_length];
+
+        m.players[1]
+            .get_mut_private_state()
+            .train_cards
+            .entry(train_card)
+            .and_modify(|count| *count += route_length as u8);
+        m.players[1].get_mut_public_state().num_train_cards += route_length as u8;
+
+        assert!(m
+            .claim_route(player_id_second, route, parallel_route_index, cards.clone())
+            .is_ok());
+        assert_eq!(m.players[1].cars(), 1);
+        assert_eq!(m.players[0].get_public_state().is_done_playing, false);
+        assert!(m.players[1].get_public_state().is_done_playing);
+        assert_eq!(m.phase, GamePhase::LastTurn);
+
+        // First player claims one last route, and the game should be over.
+        let route = (City::Montreal, City::Boston);
+        let parallel_route_index = 1;
+        let train_card = TrainColor::Pink;
+        let route_length = 2;
+        let cards = vec![train_card; route_length];
+
+        m.players[0]
+            .get_mut_private_state()
+            .train_cards
+            .entry(train_card)
+            .and_modify(|count| *count += route_length as u8);
+        m.players[0].get_mut_public_state().num_train_cards += route_length as u8;
+
+        assert!(m
+            .claim_route(player_id_first, route, parallel_route_index, cards.clone())
+            .is_ok());
+        assert_eq!(m.players[0].cars(), 0);
         assert!(m.players[0].get_public_state().is_done_playing);
         assert!(m.players[1].get_public_state().is_done_playing);
         assert_eq!(m.phase, GamePhase::Done);

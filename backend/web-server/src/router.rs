@@ -181,6 +181,22 @@ pub fn draw_close_train_card(mut write_controller: WriteController) -> Json<Acti
     Json(write_controller.draw_close_train_card())
 }
 
+/// Allows a player to claim a route for themselves.
+/// The player must be authenticated to do so.
+///
+/// More details in [`ticket_to_ride::manager::Manager::claim_route`].
+#[post(
+    "/game/<_>/player/claim_route",
+    format = "json",
+    data = "<claim_route_request>"
+)]
+pub fn claim_route(
+    mut write_controller: WriteController,
+    claim_route_request: Json<ClaimRouteRequest>,
+) -> Json<ActionResponse> {
+    Json(write_controller.claim_route(claim_route_request.into_inner()))
+}
+
 // TODO: Add integration tests.
 /// Retrieves the game state. The player must be authenticated to do so.
 ///

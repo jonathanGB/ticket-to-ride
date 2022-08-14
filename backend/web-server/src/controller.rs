@@ -211,6 +211,18 @@ impl<'a> WriteController<'a> {
 
         ActionResponse::new(self.manager().draw_close_train_card(player_id))
     }
+
+    #[inline]
+    pub(crate) fn claim_route(&mut self, claim_route_request: ClaimRouteRequest) -> ActionResponse {
+        let player_id = self.player_id;
+
+        ActionResponse::new(self.manager().claim_route(
+            player_id,
+            claim_route_request.route,
+            claim_route_request.parallel_route_index,
+            claim_route_request.cards,
+        ))
+    }
 }
 
 #[rocket::async_trait]

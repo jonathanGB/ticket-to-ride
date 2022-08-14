@@ -30,6 +30,7 @@ fn rocket() -> _ {
             routes![
                 change_player_color,
                 change_player_name,
+                claim_route,
                 create_game,
                 draw_close_train_card,
                 draw_destination_cards,

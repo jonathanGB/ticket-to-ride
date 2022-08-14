@@ -19,10 +19,12 @@ use std::{
     fs::{read, read_to_string},
     path::Path,
 };
+use strum::IntoEnumIterator;
 use ticket_to_ride::{
     card::{
         TrainColor, NUM_DRAWN_INITIAL_TRAIN_CARDS, NUM_OPEN_TRAIN_CARDS, TOTAL_NUM_TRAIN_CARDS,
     },
+    city::City,
     manager::{GamePhase, Manager},
     player::PlayerColor,
 };
@@ -954,4 +956,105 @@ fn router_draw_close_train_card() {
             }
         }
     }
+}
+
+#[test]
+fn router_claim_route() {
+    let client = Client::untracked(rocket()).expect("valid rocket");
+    let game_id = create_game(&client);
+
+    // Load five unique players.
+    let num_players = 5;
+    let cookies: Vec<_> = (1..=num_players)
+        .map(|_| {
+            let res = client.get(uri!(load_game(game_id))).dispatch();
+            assert_eq!(res.status(), Status::Ok);
+
+            let cookie = res.cookies().get_private(COOKIE_IDENTIFIER_NAME);
+            assert!(cookie.is_some());
+            cookie.unwrap()
+        })
+        .collect();
+    assert_eq!(cookies.len(), 5);
+
+    let state = client.rocket().state::<GameIdManagerMapping>().unwrap();
+    validate_state_num_of_players(state, &game_id, 5);
+
+    // Set all players as ready.
+    for cookie in &cookies {
+        let set_player_ready_request = SetPlayerReadyRequest { is_ready: true };
+        let res = client
+            .put(uri!(set_player_ready(game_id)))
+            .private_cookie(cookie.clone())
+            .json(&set_player_ready_request)
+            .dispatch();
+        expect_valid_action_response(res);
+    }
+
+    validate_state_phase(state, &game_id, GamePhase::Starting);
+    validate_state_turn(state, &game_id, None);
+
+    // Make all players select their destination cards.
+    for cookie in &cookies {
+        let select_destination_cards_request = SelectDestinationCardsRequest {
+            destination_cards_decisions: smallvec![true, false, true],
+        };
+        let res = client
+            .put(uri!(select_destination_cards(game_id)))
+            .private_cookie(cookie.clone())
+            .json(&select_destination_cards_request)
+            .dispatch();
+        expect_valid_action_response(res);
+    }
+
+    validate_state_phase(state, &game_id, GamePhase::Playing);
+    validate_state_turn(state, &game_id, Some(0));
+
+    let cookies = reorder_cookies(state, &game_id, cookies);
+
+    // Each player should claim one of these routes.
+    // We don't know what train cards the players have, but we know they have
+    // drawn four when they started the game.
+    // These routes are all of length 1, with no required colours, therefore
+    // all players should be able to claim one of them.
+    let mut routes_to_claim = vec![
+        ((City::Vancouver, City::Seattle), 0, false),
+        ((City::Seattle, City::Vancouver), 1, false),
+        ((City::Portland, City::Seattle), 0, false),
+        ((City::Omaha, City::KansasCity), 0, false),
+        ((City::Dallas, City::Houston), 1, false),
+    ];
+    'player: for (turn, cookie) in cookies.iter().enumerate() {
+        for (route, parallel_route_index, claimed) in &mut routes_to_claim {
+            for train_card in TrainColor::iter() {
+                let claim_route_request = ClaimRouteRequest {
+                    route: *route,
+                    parallel_route_index: *parallel_route_index,
+                    cards: vec![train_card; 1],
+                };
+
+                let res = client
+                    .post(uri!(claim_route(game_id)))
+                    .private_cookie(cookie.clone())
+                    .json(&claim_route_request)
+                    .dispatch();
+
+                if *claimed {
+                    expect_invalid_action_response(res);
+                } else {
+                    let res_json = res.into_json();
+                    assert!(res_json.is_some());
+                    let res_json: ActionResponse = res_json.unwrap();
+
+                    if res_json.success {
+                        validate_state_turn(state, &game_id, Some(turn + 1));
+                        *claimed = true;
+                        continue 'player;
+                    }
+                }
+            }
+        }
+    }
+
+    assert!(routes_to_claim.into_iter().all(|(_, _, claimed)| claimed));
 }

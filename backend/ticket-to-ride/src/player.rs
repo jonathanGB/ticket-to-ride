@@ -790,6 +790,11 @@ impl Player {
         &self.private
     }
 
+    #[cfg(test)]
+    pub fn get_mut_private_state(&mut self) -> &mut PrivatePlayerState {
+        &mut self.private
+    }
+
     /// Retrieve the player's state, which encapsulates both [`PublicPlayerState`] and [`PrivatePlayerState`].
     ///
     /// If the given `player_id` is not the same as the current player, only the public state will be populated --

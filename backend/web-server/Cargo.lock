@@ -1553,6 +1553,7 @@ dependencies = [
  "rocket",
  "serde_json",
  "smallvec",
+ "strum",
  "ticket-to-ride",
  "uuid",
 ]
