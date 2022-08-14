@@ -503,7 +503,7 @@ impl Map {
 
     /// Request from a player `player_id` to claim a specific route between two cities.
     ///
-    /// As there can be many routes connecting two cities, the request must specify which of the "parallel" routes they want to claim.
+    /// As there can be many routes connecting two cities, the request must specify which of the _parallel_ routes they want to claim.
     /// As well, the player must provide the cards that are used to claim that route.
     ///
     /// A multitude of verifications are applied to make sure that the player has the right to claim this route.
@@ -782,7 +782,7 @@ impl Map {
 
         // Maps each city to a list of adjacent cities, including the length of the route connecting the two.
         // Start cities are indexed by their usize representation.
-        let mut all_routes: [SmallVec<[(City, u8); MAX_ROUTES_PER_CITY]>; City::COUNT] =
+        let mut all_routes: [SmallVec<[(City, u8); MAX_ROUTES_PER_CITY]>; City::COUNT + 1] =
             array_init(|_| SmallVec::new());
 
         // Deduplicate the cities that will be explored.
@@ -828,7 +828,7 @@ impl Map {
 
     fn get_longest_route_from_city(
         start: City,
-        all_routes: &[SmallVec<[(City, u8); 7]>; City::COUNT],
+        all_routes: &[SmallVec<[(City, u8); 7]>; City::COUNT + 1],
         routes_visited: HashSet<CityToCity>,
         current_length: u16,
     ) -> u16 {

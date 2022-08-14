@@ -3,6 +3,9 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 use strum::EnumCount;
 use strum_macros::{Display, EnumCount as EnumCountMacro};
 
+// TODO: Consider making the cities 0-indexed.
+// If we do this, we can remove the `COUNT+1` fix in the longest route algorithm.
+
 /// All the different cities on the map.
 ///
 /// # JSON
