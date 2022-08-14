@@ -111,6 +111,13 @@ pub struct Manager {
     /// Once that number equals the number of players, we are ready to start the turn-based
     /// game -- and transition to the [`GamePhase::Playing`].
     num_players_selected_initial_destination_cards: usize,
+    /// Only relevant in the [`GamePhase::LastTurn`].
+    ///
+    /// Keeps track of the number of players that have finished playing.
+    ///
+    /// Once that number equals the number of players, the game is over -- and transition
+    /// to the [`GamePhase::Done`].
+    num_players_done_playing: usize,
 }
 
 impl Manager {
@@ -124,6 +131,7 @@ impl Manager {
             players: SmallVec::new(),
             players_position: HashMap::new(),
             num_players_selected_initial_destination_cards: 0,
+            num_players_done_playing: 0,
         }
     }
 
@@ -320,13 +328,83 @@ impl Manager {
     }
 
     #[inline]
-    fn game_started(&self) -> bool {
-        self.phase == GamePhase::Starting || self.turn_based_game_started()
+    fn has_game_started(&self) -> ManagerActionResult {
+        if self.phase == GamePhase::Starting || self.has_turn_based_game_started().is_ok() {
+            Ok(())
+        } else {
+            Err(String::from(
+                "Cannot play if the game has not started, or if it has ended.",
+            ))
+        }
     }
 
     #[inline]
-    fn turn_based_game_started(&self) -> bool {
-        self.phase == GamePhase::Playing || self.phase == GamePhase::LastTurn
+    fn has_turn_based_game_started(&self) -> ManagerActionResult {
+        if self.phase == GamePhase::Playing || self.phase == GamePhase::LastTurn {
+            Ok(())
+        } else {
+            Err(String::from(
+                "Cannot play if the turn-based game has not started, or if it has ended.",
+            ))
+        }
+    }
+
+    /// # Panic!
+    /// This should only be called once the turn-based game has started,
+    /// as it assumes that `self.turn` is defined, and that the number of players is >0.
+    #[inline]
+    fn is_player_turn(&self, player_index: usize) -> ManagerActionResult {
+        if self.turn.unwrap() % self.num_players() == player_index {
+            Ok(())
+        } else {
+            Err(String::from("This is not your turn!"))
+        }
+    }
+
+    /// # Panic!
+    /// This should only be called once the turn-based game has started,
+    /// as it assumes that `self.turn` is defined.
+    #[inline]
+    fn increment_turn(&mut self) {
+        *self.turn.as_mut().unwrap() += 1;
+    }
+
+    /// Updates players' and game's state, depending on whether a given player is done playing.
+    ///
+    /// If we are in [`GamePhase::LastTurn`], the player is marked as done.
+    ///
+    /// Furthermore, if all players are done, then we transition to [`GamePhase::Done`].
+    /// When we do so, we update the points of each player, based on whether they have fulfilled
+    /// or not their destination cards. Finally, we compute the game's longest route, and grant
+    /// points to those having built said longest route.
+    fn maybe_player_and_game_done(&mut self, player_index: usize) {
+        if self.phase != GamePhase::LastTurn {
+            return;
+        }
+        self.num_players_done_playing += 1;
+        self.players[player_index].set_done_playing();
+
+        if self.num_players_done_playing != self.num_players() {
+            return;
+        }
+
+        let map = self.map.as_mut().unwrap();
+
+        self.phase = GamePhase::Done;
+        let all_longest_routes: SmallVec<[u16; MAX_PLAYERS]> = self
+            .players
+            .iter_mut()
+            .map(|player| player.finalize_game(map))
+            .collect();
+        let max_longest_route = *all_longest_routes.iter().max().unwrap();
+
+        all_longest_routes
+            .into_iter()
+            .enumerate()
+            .for_each(|(player_index, longest_route)| {
+                self.players[player_index]
+                    .set_has_longest_route(longest_route == max_longest_route);
+            });
     }
 
     /// Allows a given player to select from the set of destination cards --
@@ -334,9 +412,12 @@ impl Manager {
     ///
     /// Returns an `Err` if either:
     ///   * We are not in [`GamePhase::Starting`], [`GamePhase::Playing`], nor [`GamePhase::LastTurn`].
+    ///   * This is not the player's turn, once the turn-based game has started.
     ///   * [`Player::select_destination_cards`] failed.
     ///
-    /// Otherwise, returns `Ok(())`.
+    /// Otherwise, returns `Ok(())`, and increments the turn (if the turn-based game has started).
+    /// As all actions that mark the end of the turn, we subsequently verify whether the
+    /// player is done playing. More details in `Manager::maybe_player_and_game_done`.
     ///
     /// If this selection happens during [`GamePhase::Starting`], we check whether all players have selected
     /// their destination cards. If that is the case, then we:
@@ -347,13 +428,13 @@ impl Manager {
         player_id: usize,
         destination_cards_decisions: SmallVec<[bool; NUM_DRAWN_DESTINATION_CARDS]>,
     ) -> ManagerActionResult {
-        if !self.game_started() {
-            return Err(String::from(
-                "Cannot select destination cards if the game is not started, or if it is ended.",
-            ));
-        }
+        self.has_game_started()?;
 
         let player_index = self.get_player_index(player_id).unwrap();
+        if self.has_turn_based_game_started().is_ok() {
+            self.is_player_turn(player_index)?;
+        }
+
         self.players[player_index].select_destination_cards(
             destination_cards_decisions,
             self.turn,
@@ -367,7 +448,30 @@ impl Manager {
                 self.phase = GamePhase::Playing;
                 self.turn = Some(0);
             }
+        } else {
+            self.increment_turn();
+            self.maybe_player_and_game_done(player_index);
         }
+
+        Ok(())
+    }
+
+    /// Allows a given player to draw destination cards.
+    ///
+    /// Returns an `Err` if either:
+    ///   * We are not in [`GamePhase::Playing`], nor [`GamePhase::LastTurn`].
+    ///   * This is not the player's turn.
+    ///   * [`Player::draw_destination_cards`] failed.
+    ///
+    /// Otherwise, returns `Ok(())`.
+    pub fn draw_destination_cards(&mut self, player_id: usize) -> ManagerActionResult {
+        self.has_turn_based_game_started()?;
+
+        let player_index = self.get_player_index(player_id).unwrap();
+        self.is_player_turn(player_index)?;
+
+        self.players[player_index]
+            .draw_destination_cards(self.turn.unwrap(), self.card_dealer.as_mut().unwrap())?;
 
         Ok(())
     }
@@ -376,6 +480,7 @@ impl Manager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{city::City, map::ClaimedRoute};
 
     // Tests for `GamePhase`.
 
@@ -603,6 +708,17 @@ mod tests {
         assert!(m.set_ready(player_id, true).is_ok());
         assert!(m.set_ready(other_player_id, true).is_ok());
 
+        for player in &m.players {
+            assert_eq!(
+                player.get_private_state().pending_destination_cards.len(),
+                NUM_DRAWN_DESTINATION_CARDS
+            );
+            assert!(player
+                .get_private_state()
+                .selected_destination_cards
+                .is_empty());
+        }
+
         // Invalid selection, because at least two cards must be selected when we start the game.
         let invalid_cards_decisions = smallvec![true, false, false];
         assert!(m
@@ -615,6 +731,20 @@ mod tests {
         assert_eq!(m.phase, GamePhase::Starting);
         assert!(m.turn.is_none());
 
+        let player_index = m.get_player_index(player_id).unwrap();
+        assert!(m.players[player_index]
+            .get_private_state()
+            .pending_destination_cards
+            .is_empty());
+        // Only 2 cards were previously selected.
+        assert_eq!(
+            m.players[player_index]
+                .get_private_state()
+                .selected_destination_cards
+                .len(),
+            2
+        );
+
         // Same player can't select cards again in the same turn.
         assert!(m
             .select_destination_cards(player_id, destination_cards_decisions.clone())
@@ -625,6 +755,33 @@ mod tests {
             .is_ok());
         assert_eq!(m.phase, GamePhase::Playing);
         assert_eq!(m.turn, Some(0));
+
+        let (player_id_first, player_id_second) = if m.get_player_index(player_id) == Some(0) {
+            (player_id, other_player_id)
+        } else {
+            (other_player_id, player_id)
+        };
+
+        assert!(m.draw_destination_cards(player_id_first).is_ok());
+
+        assert_eq!(m.turn, Some(0));
+
+        let destination_cards_decisions = smallvec![true, false, false];
+        let invalid_destination_cards_decisions = smallvec![false, false, false];
+        // Wrong turn.
+        assert!(m
+            .select_destination_cards(player_id_second, destination_cards_decisions.clone())
+            .is_err());
+        // Invalid selection, because at least one card during the turn-based game.
+        assert!(m
+            .select_destination_cards(player_id_first, invalid_destination_cards_decisions.clone())
+            .is_err());
+
+        assert!(m
+            .select_destination_cards(player_id_first, destination_cards_decisions.clone())
+            .is_ok());
+
+        assert_eq!(m.turn, Some(1));
     }
 
     #[test]
@@ -643,30 +800,148 @@ mod tests {
     }
 
     #[test]
+    fn manager_select_destination_cards_last_turn() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        m.phase = GamePhase::LastTurn;
+        m.turn = Some(40);
+
+        let (player_id_first, player_id_second) = if m.get_player_index(player_id) == Some(0) {
+            (player_id, other_player_id)
+        } else {
+            (other_player_id, player_id)
+        };
+
+        m.players[0].get_mut_public_state().claimed_routes = vec![ClaimedRoute {
+            route: (City::LosAngeles, City::SanFrancisco),
+            parallel_route_index: 0,
+            length: 3,
+        }];
+
+        assert_eq!(m.players[0].get_public_state().is_done_playing, false);
+        assert!(m.players[0].get_public_state().has_longest_route.is_none());
+        assert_eq!(m.players[1].get_public_state().is_done_playing, false);
+        assert!(m.players[1].get_public_state().has_longest_route.is_none());
+
+        let destination_cards_decisions = smallvec![true, false, true];
+        assert!(m.draw_destination_cards(player_id_first).is_ok());
+        assert!(m
+            .select_destination_cards(player_id_first, destination_cards_decisions)
+            .is_ok());
+
+        assert_eq!(m.turn, Some(41));
+        assert!(m.players[0].get_public_state().is_done_playing);
+        assert!(m.players[0].get_public_state().has_longest_route.is_none());
+        assert_eq!(m.players[1].get_public_state().is_done_playing, false);
+        assert!(m.players[1].get_public_state().has_longest_route.is_none());
+
+        let destination_cards_decisions = smallvec![true, false, true];
+        assert!(m.draw_destination_cards(player_id_second).is_ok());
+        assert!(m
+            .select_destination_cards(player_id_second, destination_cards_decisions)
+            .is_ok());
+
+        assert_eq!(m.turn, Some(42));
+        assert_eq!(m.phase, GamePhase::Done);
+        assert!(m.players[0].get_public_state().is_done_playing);
+        assert_eq!(
+            m.players[0].get_public_state().has_longest_route,
+            Some(true)
+        );
+        assert!(m.players[1].get_public_state().is_done_playing);
+        assert_eq!(
+            m.players[1].get_public_state().has_longest_route,
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn manager_draw_destination_cards() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        m.phase = GamePhase::Playing;
+        m.turn = Some(0);
+
+        let (player_id_first, player_id_second) = if m.get_player_index(player_id) == Some(0) {
+            (player_id, other_player_id)
+        } else {
+            (other_player_id, player_id)
+        };
+
+        assert!(m.draw_destination_cards(player_id_first).is_ok());
+        assert_eq!(
+            m.players[0]
+                .get_private_state()
+                .pending_destination_cards
+                .len(),
+            NUM_DRAWN_DESTINATION_CARDS
+        );
+        // Can't draw again this turn.
+        assert!(m.draw_destination_cards(player_id_first).is_err());
+        // Wrong turn.
+        assert!(m.draw_destination_cards(player_id_second).is_err());
+
+        assert_eq!(m.turn, Some(0));
+
+        let destination_cards_decisions = smallvec![true, false, false];
+        assert!(m
+            .select_destination_cards(player_id_first, destination_cards_decisions.clone())
+            .is_ok());
+
+        assert_eq!(m.turn, Some(1));
+
+        // Next turn has started: it's not the first player's turn anymore.
+        assert!(m.draw_destination_cards(player_id_first).is_err());
+        assert!(m.draw_destination_cards(player_id_second).is_ok());
+        // Can't draw again this turn.
+        assert!(m.draw_destination_cards(player_id_second).is_err());
+
+        assert_eq!(m.turn, Some(1));
+
+        assert!(m
+            .select_destination_cards(player_id_second, destination_cards_decisions.clone())
+            .is_ok());
+
+        assert_eq!(m.turn, Some(2));
+    }
+
+    #[test]
     fn manager_game_started() {
         let mut m = Manager::new();
 
-        assert_eq!(m.game_started(), false);
-        assert_eq!(m.turn_based_game_started(), false);
+        assert!(m.has_game_started().is_err());
+        assert!(m.has_turn_based_game_started().is_err());
 
         m.phase = GamePhase::Starting;
 
-        assert!(m.game_started());
-        assert_eq!(m.turn_based_game_started(), false);
+        assert!(m.has_game_started().is_ok());
+        assert!(m.has_turn_based_game_started().is_err());
 
         m.phase = GamePhase::Playing;
 
-        assert!(m.game_started());
-        assert!(m.turn_based_game_started());
+        assert!(m.has_game_started().is_ok());
+        assert!(m.has_turn_based_game_started().is_ok());
 
         m.phase = GamePhase::LastTurn;
 
-        assert!(m.game_started());
-        assert!(m.turn_based_game_started());
+        assert!(m.has_game_started().is_ok());
+        assert!(m.has_turn_based_game_started().is_ok());
 
         m.phase = GamePhase::Done;
 
-        assert_eq!(m.game_started(), false);
-        assert_eq!(m.turn_based_game_started(), false);
+        assert!(m.has_game_started().is_err());
+        assert!(m.has_turn_based_game_started().is_err());
     }
 }
