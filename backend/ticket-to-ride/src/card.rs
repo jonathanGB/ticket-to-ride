@@ -84,6 +84,7 @@ impl TrainColor {
     }
 }
 
+// TODO: Add a boolean field `fulfilled`.
 /// Encapsulates information about a destination card.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct DestinationCard {
