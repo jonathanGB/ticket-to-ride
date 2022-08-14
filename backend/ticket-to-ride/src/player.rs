@@ -8,8 +8,10 @@ use std::collections::HashMap;
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
-// Every player starts the game with 45 cards.
+/// Every player starts the game with 45 cards.
 const NUM_OF_CARS: u8 = 45;
+/// Number of bonus points for players with the longest route.
+const LONGEST_ROUTE_POINTS: u8 = 10;
 
 /// All actions taken by a player have the same `Result`:
 ///
@@ -108,8 +110,8 @@ pub struct PlayerState<'a> {
     pub private_player_state: Option<&'a PrivatePlayerState>,
 }
 
-#[derive(Debug, PartialEq, Serialize)]
 /// Information about a player's state that is visible to all players.
+#[derive(Debug, PartialEq, Serialize)]
 pub struct PublicPlayerState {
     /// Unique to each player in the game.
     /// Requests from the web client are authenticated using this id.
@@ -128,9 +130,10 @@ pub struct PublicPlayerState {
     /// This is the currency used, alongside train cards, to claim routes.
     pub cars: u8,
     /// How many points the player has so far.
+    ///
     /// Points are gained by claiming routes, and at the end of the game we grant extra points for
     /// completed destination cards (or penalize if unfulfilled) alongside a bonus for longest route.
-    pub points: u8,
+    pub points: i16,
     /// Actions taken by the player during the last turn they have participated in.
     pub turn_actions: TurnActions,
     /// List of routes claimed by the player.
@@ -138,6 +141,15 @@ pub struct PublicPlayerState {
     /// How many train cards a player has.
     /// This is derived from [`PrivatePlayerState::train_cards`].
     pub num_train_cards: u8,
+    /// If the player has the longest route.
+    /// Note that more than one player can have the longest route (if they are of equal length).
+    ///
+    /// As long as the game is not done, this is `None`.
+    ///
+    /// ## Serde
+    /// When serializing to JSON, this field is skipped if it is `None`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_longest_route: Option<bool>,
 }
 
 impl PublicPlayerState {
@@ -153,6 +165,7 @@ impl PublicPlayerState {
             turn_actions: TurnActions::new(),
             claimed_routes: Vec::new(),
             num_train_cards: 0,
+            has_longest_route: None,
         }
     }
 }
@@ -283,6 +296,16 @@ impl Player {
     #[inline]
     pub fn set_done_playing(&mut self) {
         self.public.is_done_playing = true;
+    }
+
+    // Set whether or not a player has completed the overall longest route of the game.
+    #[inline]
+    pub fn set_has_longest_route(&mut self, has_longest_route: bool) {
+        self.public.has_longest_route = Some(has_longest_route);
+
+        if has_longest_route {
+            self.public.points += LONGEST_ROUTE_POINTS as i16;
+        }
     }
 
     /// Clears the turn's actions, and overrides it with the given action and description.
@@ -439,7 +462,7 @@ impl Player {
             self.public.num_train_cards -= num;
         }
 
-        self.public.points += Map::calculate_points_for_claimed_route(claimed_route.length);
+        self.public.points += Map::calculate_points_for_claimed_route(claimed_route.length) as i16;
         self.public.cars -= claimed_route.length;
         self.public.claimed_routes.push(claimed_route);
         card_dealer.discard_train_cards(cards);
@@ -735,6 +758,26 @@ impl Player {
         Ok(true)
     }
 
+    #[cfg(test)]
+    pub fn get_public_state(&self) -> &PublicPlayerState {
+        &self.public
+    }
+
+    #[cfg(test)]
+    pub fn get_mut_public_state(&mut self) -> &mut PublicPlayerState {
+        &mut self.public
+    }
+
+    #[cfg(test)]
+    pub fn get_private_state(&self) -> &PrivatePlayerState {
+        &self.private
+    }
+
+    // TODO: Change the API to take a bool rather than `player_id`.
+    // The idea being that once the game is done, it will probably be needed to share everyone's
+    // private state with everyone. For instance, players will want to see what the other players'
+    // destination cards were.
+
     /// Retrieve the player's state, which encapsulates both [`PublicPlayerState`] and [`PrivatePlayerState`].
     ///
     /// If the given `player_id` is not the same as the current player, only the public state will be populated --
@@ -753,8 +796,28 @@ impl Player {
         }
     }
 
-    // TODO: add an "end game" function that calculates how many destination cards are fulfilled,
-    // and what the player's longest route is.
+    /// Final bookkeeping for a player, only once the game is over.
+    ///
+    /// Goes over all the selected destination cards, and updates points based on whether the player
+    /// has fulfilled the given cards, or not.
+    ///
+    /// Finally, calculates the player's longest route, and returns that length.
+    pub fn finalize_game(&mut self, map: &mut Map) -> u16 {
+        // TODO: Maybe check whether a destination card is fulfilled everytime we claim a route.
+        // With the new proposed `fulfilled` boolean field in `DestinationCard`, this could
+        // provide feedback to the player that a destination card is indeed fulfilled as the game is going.
+        // Note though that the destination bonus/penalties should still be tallied at the end.
+
+        for destination_card in &self.private.selected_destination_cards {
+            if map.has_player_fulfilled_destination(destination_card.destination, self.id()) {
+                self.public.points += destination_card.points as i16;
+            } else {
+                self.public.points -= destination_card.points as i16;
+            }
+        }
+
+        Map::get_longest_route(&self.public.claimed_routes)
+    }
 }
 
 #[cfg(test)]
@@ -809,6 +872,35 @@ mod tests {
         assert!(serde_json::from_str::<PlayerColor>(r#""turquoise""#).is_err());
     }
 
+    // Tests for `PublicPlayerState`.
+
+    #[test]
+    fn public_player_state_to_json() -> serde_json::Result<()> {
+        // Specifically, we want to test whether the skip rule
+        // for `has_longest_route` is followed.
+
+        let id = 0;
+        let color = PlayerColor::Green;
+        let name = String::from("Bob");
+        let mut public_player_state = PublicPlayerState::new(id, color, name);
+
+        let public_player_state_json = serde_json::to_string(&public_player_state)?;
+        assert_eq!(
+            public_player_state_json.contains(r#""has_longest_route""#),
+            false
+        );
+
+        public_player_state.has_longest_route = Some(true);
+        let public_player_state_json = serde_json::to_string(&public_player_state)?;
+        assert!(public_player_state_json.contains(r#""has_longest_route":true"#));
+
+        public_player_state.has_longest_route = Some(false);
+        let public_player_state_json = serde_json::to_string(&public_player_state)?;
+        assert!(public_player_state_json.contains(r#""has_longest_route":false"#));
+
+        Ok(())
+    }
+
     // Tests for `Player`.
     const PLAYER_ID: usize = 0;
     const PLAYER_COLOR: PlayerColor = PlayerColor::Orange;
@@ -828,6 +920,7 @@ mod tests {
         assert!(player.public.turn_actions.description.is_empty());
         assert!(player.public.claimed_routes.is_empty());
         assert_eq!(player.public.num_train_cards, 0);
+        assert_eq!(player.public.has_longest_route, None);
 
         assert!(player.private.pending_destination_cards.is_empty());
         assert!(player.private.selected_destination_cards.is_empty());
@@ -1659,5 +1752,116 @@ mod tests {
         let player_state = player.get_player_state(PLAYER_ID + 1);
         assert_eq!(&player.public, player_state.public_player_state);
         assert!(player_state.private_player_state.is_none());
+    }
+
+    #[test]
+    fn player_has_longest_route() {
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
+        let points = 7;
+        player.public.points = points;
+        assert_eq!(player.public.has_longest_route, None);
+
+        player.set_has_longest_route(true);
+        assert_eq!(player.public.points, points + LONGEST_ROUTE_POINTS as i16);
+        assert_eq!(player.public.has_longest_route, Some(true));
+    }
+
+    #[test]
+    fn player_has_not_longest_route() {
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
+        let points = 7;
+        player.public.points = points;
+        assert_eq!(player.public.has_longest_route, None);
+
+        player.set_has_longest_route(false);
+        assert_eq!(player.public.points, points);
+        assert_eq!(player.public.has_longest_route, Some(false));
+    }
+
+    #[test]
+    fn player_finalize_game() {
+        let route = (City::Chicago, City::Pittsburgh);
+        let parallel_route_index = 0;
+        let cards = vec![TrainColor::Wild, TrainColor::Black, TrainColor::Black];
+        let turn = 5;
+        let mut map = Map::new(2).unwrap();
+        let mut card_dealer = CardDealer::new();
+
+        let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
+
+        player.private.train_cards.insert(TrainColor::Wild, 1);
+        player.private.train_cards.insert(TrainColor::Black, 2);
+        player.public.num_train_cards += 3;
+
+        assert_eq!(
+            player.claim_route(
+                route,
+                parallel_route_index,
+                cards.clone(),
+                turn,
+                &mut map,
+                &mut card_dealer
+            ),
+            Ok(true)
+        );
+
+        let route = (City::Toronto, City::Pittsburgh);
+        let parallel_route_index = 0;
+        let cards = vec![TrainColor::Red; 2];
+        let turn = 7;
+
+        player.private.train_cards.insert(TrainColor::Red, 2);
+        player.public.num_train_cards += 2;
+
+        assert_eq!(
+            player.claim_route(
+                route,
+                parallel_route_index,
+                cards.clone(),
+                turn,
+                &mut map,
+                &mut card_dealer
+            ),
+            Ok(true)
+        );
+
+        let route = (City::NewOrleans, City::Atlanta);
+        let parallel_route_index = 1;
+        let cards = vec![TrainColor::Yellow; 4];
+        let turn = 9;
+
+        player.private.train_cards.insert(TrainColor::Yellow, 4);
+        player.public.num_train_cards += 4;
+
+        assert_eq!(
+            player.claim_route(
+                route,
+                parallel_route_index,
+                cards.clone(),
+                turn,
+                &mut map,
+                &mut card_dealer
+            ),
+            Ok(true)
+        );
+
+        let points = player.public.points;
+
+        player.private.selected_destination_cards = vec![
+            DestinationCard {
+                destination: (City::Toronto, City::Chicago),
+                points: 3,
+            },
+            DestinationCard {
+                destination: (City::NewOrleans, City::Vancouver),
+                points: 25,
+            },
+        ];
+
+        let longest_route = player.finalize_game(&mut map);
+        // Chicago -> Pittsburgh = 3.
+        // Pittsburgh -> Toronto = 2.
+        assert_eq!(longest_route, 5);
+        assert_eq!(player.public.points, points + 3 - 25);
     }
 }
