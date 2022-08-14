@@ -140,6 +140,8 @@ impl Manager {
     /// This said perspective is important, because a given player should only be
     /// able to know about the public information of other players, but should know
     /// private information about themselves (e.g. which train cards they have).
+    /// The one exception is when the game is done: in that case, every player should
+    /// be able to see each other's public and private state.
     pub fn get_state(&self, player_id: usize) -> GameState {
         GameState {
             phase: self.phase,
@@ -151,7 +153,11 @@ impl Manager {
             players_state: self
                 .players
                 .iter()
-                .map(|player| player.get_player_state(player_id))
+                .map(|player| {
+                    let include_private_state =
+                        player.id() == player_id || self.phase == GamePhase::Done;
+                    player.get_player_state(include_private_state)
+                })
                 .collect(),
         }
     }
@@ -795,6 +801,68 @@ mod tests {
         assert!(m
             .select_destination_cards(player_id, destination_cards_decisions)
             .is_err());
+    }
+
+    #[test]
+    fn manager_get_state_different_phases() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        {
+            m.phase = GamePhase::Starting;
+
+            let game_state = m.get_state(player_id);
+            println!("State: {:?}", game_state.players_state);
+            assert_eq!(game_state.players_state.len(), 2);
+            assert!(game_state.players_state[player_id]
+                .private_player_state
+                .is_some());
+            assert!(game_state.players_state[other_player_id]
+                .private_player_state
+                .is_none());
+        }
+
+        {
+            m.phase = GamePhase::Playing;
+
+            let game_state = m.get_state(player_id);
+            println!("State: {:?}", game_state.players_state);
+            assert_eq!(game_state.players_state.len(), 2);
+            assert!(game_state.players_state[player_id]
+                .private_player_state
+                .is_some());
+            assert!(game_state.players_state[other_player_id]
+                .private_player_state
+                .is_none());
+        }
+
+        {
+            m.phase = GamePhase::LastTurn;
+
+            let game_state = m.get_state(player_id);
+            println!("State: {:?}", game_state.players_state);
+            assert_eq!(game_state.players_state.len(), 2);
+            assert!(game_state.players_state[player_id]
+                .private_player_state
+                .is_some());
+            assert!(game_state.players_state[other_player_id]
+                .private_player_state
+                .is_none());
+        }
+
+        // Special case: we can see private state of all players
+        // once the game is over.
+        m.phase = GamePhase::Done;
+
+        let game_state = m.get_state(player_id);
+        println!("State: {:?}", game_state.players_state);
+        assert_eq!(game_state.players_state.len(), 2);
+        assert!(game_state
+            .players_state
+            .iter()
+            .all(|player_state| player_state.private_player_state.is_some()));
     }
 
     #[test]

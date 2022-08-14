@@ -790,18 +790,13 @@ impl Player {
         &self.private
     }
 
-    // TODO: Change the API to take a bool rather than `player_id`.
-    // The idea being that once the game is done, it will probably be needed to share everyone's
-    // private state with everyone. For instance, players will want to see what the other players'
-    // destination cards were.
-
     /// Retrieve the player's state, which encapsulates both [`PublicPlayerState`] and [`PrivatePlayerState`].
     ///
     /// If the given `player_id` is not the same as the current player, only the public state will be populated --
     /// the private state will be left to `None`.
     /// Otherwise, both public and private states are populated.
-    pub fn get_player_state(&self, player_id: usize) -> PlayerState {
-        let private_player_state = if self.public.id == player_id {
+    pub fn get_player_state(&self, include_private_state: bool) -> PlayerState {
+        let private_player_state = if include_private_state {
             Some(&self.private)
         } else {
             None
@@ -1748,7 +1743,7 @@ mod tests {
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
 
-        let player_state = player.get_player_state(PLAYER_ID);
+        let player_state = player.get_player_state(true);
         assert_eq!(&player.public, player_state.public_player_state);
         assert!(player_state.private_player_state.is_some());
         assert_eq!(&player.private, player_state.private_player_state.unwrap());
@@ -1761,7 +1756,7 @@ mod tests {
         let mut player = Player::new(PLAYER_ID, PLAYER_COLOR, format!("Player {}", PLAYER_ID));
         player.initialize_when_game_starts(&mut card_dealer);
 
-        let player_state = player.get_player_state(PLAYER_ID + 1);
+        let player_state = player.get_player_state(false);
         assert_eq!(&player.public, player_state.public_player_state);
         assert!(player_state.private_player_state.is_none());
     }
