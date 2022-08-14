@@ -131,7 +131,7 @@ pub fn set_player_ready(
     Json(write_controller.set_player_ready(set_player_ready_request.into_inner()))
 }
 
-/// Allows a the player to select which _pending_ destination cards they want to fulfill.
+/// Allows a player to select which _pending_ destination cards they want to fulfill.
 /// The player must be authenticated to do so.
 ///
 /// More details in [`ticket_to_ride::manager::Manager::select_destination_cards`].
@@ -145,6 +145,15 @@ pub fn select_destination_cards(
     select_destination_cards_request: Json<SelectDestinationCardsRequest>,
 ) -> Json<ActionResponse> {
     Json(write_controller.select_destination_cards(select_destination_cards_request.into_inner()))
+}
+
+/// Allows a player to draw destination cards.
+/// The player must be authenticated to do so.
+///
+/// More details in [`ticket_to_ride::manager::Manager::draw_destination_cards`].
+#[get("/game/<_>/player/draw_destination_cards")]
+pub fn draw_destination_cards(mut write_controller: WriteController) -> Json<ActionResponse> {
+    Json(write_controller.draw_destination_cards())
 }
 
 /// Retrieves the game state. The player must be authenticated to do so.

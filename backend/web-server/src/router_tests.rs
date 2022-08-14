@@ -106,6 +106,18 @@ fn validate_state_num_of_players(
     });
 }
 
+fn validate_state_phase(state: &GameIdManagerMapping, game_id: &Uuid, phase: GamePhase) {
+    validate_state_if(state, game_id, |game_manager| {
+        assert_eq!(game_manager.get_state(0).phase, phase);
+    });
+}
+
+fn validate_state_turn(state: &GameIdManagerMapping, game_id: &Uuid, turn: Option<usize>) {
+    validate_state_if(state, game_id, |game_manager| {
+        assert_eq!(game_manager.get_state(0).turn, turn);
+    });
+}
+
 fn validate_state_if<F>(state: &GameIdManagerMapping, game_id: &Uuid, predicate: F)
 where
     F: FnOnce(&Manager),
@@ -117,6 +129,25 @@ where
     predicate(&*game_manager);
 }
 
+fn reorder_cookies<'a>(
+    state: &GameIdManagerMapping,
+    game_id: &Uuid,
+    cookies: Vec<Cookie<'a>>,
+) -> Vec<Cookie<'a>> {
+    let game_manager = state.get(game_id);
+    assert!(game_manager.is_some());
+    let game_manager = game_manager.unwrap();
+
+    let mut cookies: Vec<Option<Cookie>> = cookies.into_iter().map(|cookie| Some(cookie)).collect();
+    let mut reordered_cookies = Vec::new();
+    for player in game_manager.get_state(0).players_state {
+        let player_id = player.public_player_state.id;
+        reordered_cookies.push(std::mem::take(&mut cookies[player_id]).unwrap());
+    }
+
+    reordered_cookies
+}
+
 fn expect_valid_action_response(res: LocalResponse) {
     assert_eq!(res.status(), Status::Ok);
 
@@ -124,7 +155,11 @@ fn expect_valid_action_response(res: LocalResponse) {
     assert!(res_json.is_some());
     let res_json: ActionResponse = res_json.unwrap();
 
-    assert!(res_json.success);
+    assert!(
+        res_json.success,
+        "Expected success=true, but got success=false. Error: {:?}",
+        res_json.error_message
+    );
     assert!(res_json.error_message.is_none());
 }
 
@@ -135,7 +170,10 @@ fn expect_invalid_action_response(res: LocalResponse) {
     assert!(res_json.is_some());
     let res_json: ActionResponse = res_json.unwrap();
 
-    assert_eq!(res_json.success, false);
+    assert!(
+        !res_json.success,
+        "Expected success=false, but got success=true."
+    );
     assert!(res_json.error_message.is_some());
 }
 
@@ -574,9 +612,7 @@ fn router_set_player_ready() {
         expect_valid_action_response(res);
     });
 
-    validate_state_if(state, &game_id, |game_manager| {
-        assert_eq!(game_manager.get_state(0).phase, GamePhase::InLobby);
-    });
+    validate_state_phase(state, &game_id, GamePhase::InLobby);
 
     // Setting a player as ready (without a cookie) should fail.
     let set_player_ready_request = SetPlayerReadyRequest { is_ready: true };
@@ -597,9 +633,7 @@ fn router_set_player_ready() {
     expect_valid_action_response(res);
 
     // Validate that we are still in the lobby.
-    validate_state_if(state, &game_id, |game_manager| {
-        assert_eq!(game_manager.get_state(0).phase, GamePhase::InLobby);
-    });
+    validate_state_phase(state, &game_id, GamePhase::InLobby);
 
     // Set the first player as ready now.
     let set_player_ready_request = SetPlayerReadyRequest { is_ready: true };
@@ -611,9 +645,7 @@ fn router_set_player_ready() {
     expect_valid_action_response(res);
 
     // Validate that we have moved out of the lobby.
-    validate_state_if(state, &game_id, |game_manager| {
-        assert_eq!(game_manager.get_state(0).phase, GamePhase::Starting);
-    });
+    validate_state_phase(state, &game_id, GamePhase::Starting);
 
     // Set a  player as ready when we are out of the lobby should fail.
     let set_player_ready_request = SetPlayerReadyRequest { is_ready: true };
@@ -626,7 +658,7 @@ fn router_set_player_ready() {
 }
 
 #[test]
-fn router_select_destination_cards() {
+fn router_draw_and_select_destination_cards() {
     let client = Client::untracked(rocket()).expect("valid rocket");
     let game_id = create_game(&client);
 
@@ -658,12 +690,15 @@ fn router_select_destination_cards() {
         expect_valid_action_response(res);
     }
 
-    validate_state_if(state, &game_id, |game_manager| {
-        let game_state = game_manager.get_state(0);
+    validate_state_phase(state, &game_id, GamePhase::Starting);
+    validate_state_turn(state, &game_id, None);
 
-        assert_eq!(game_state.phase, GamePhase::Starting);
-        assert_eq!(game_state.turn, None);
-    });
+    // Third player can't draw destination cards if the turn-based game is not started.
+    let res = client
+        .get(uri!(draw_destination_cards(game_id)))
+        .private_cookie(cookies[2].clone())
+        .dispatch();
+    expect_invalid_action_response(res);
 
     // Third player selects too little destination cards (minimum is two in `Starting` phase).
     let select_destination_cards_request = SelectDestinationCardsRequest {
@@ -689,10 +724,31 @@ fn router_select_destination_cards() {
         expect_valid_action_response(res);
     }
 
-    validate_state_if(state, &game_id, |game_manager| {
-        let game_state = game_manager.get_state(0);
+    validate_state_phase(state, &game_id, GamePhase::Playing);
+    validate_state_turn(state, &game_id, Some(0));
 
-        assert_eq!(game_state.phase, GamePhase::Playing);
-        assert_eq!(game_state.turn, Some(0));
-    });
+    let cookies = reorder_cookies(state, &game_id, cookies);
+
+    // Make all players draw and select extra destination cards.
+    for (i, cookie) in cookies.iter().enumerate() {
+        let res = client
+            .get(uri!(draw_destination_cards(game_id)))
+            .private_cookie(cookie.clone())
+            .dispatch();
+        expect_valid_action_response(res);
+
+        validate_state_turn(state, &game_id, Some(i));
+
+        let select_destination_cards_request = SelectDestinationCardsRequest {
+            destination_cards_decisions: smallvec![true, false, true],
+        };
+        let res = client
+            .put(uri!(select_destination_cards(game_id)))
+            .private_cookie(cookie.clone())
+            .json(&select_destination_cards_request)
+            .dispatch();
+        expect_valid_action_response(res);
+
+        validate_state_turn(state, &game_id, Some(i + 1));
+    }
 }

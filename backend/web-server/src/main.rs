@@ -31,6 +31,7 @@ fn rocket() -> _ {
                 change_player_color,
                 change_player_name,
                 create_game,
+                draw_destination_cards,
                 get_game_state,
                 index,
                 load_game,

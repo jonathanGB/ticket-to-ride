@@ -184,6 +184,13 @@ impl<'a> WriteController<'a> {
             select_destination_cards_request.destination_cards_decisions,
         ))
     }
+
+    #[inline]
+    pub(crate) fn draw_destination_cards(&mut self) -> ActionResponse {
+        let player_id = self.player_id;
+
+        ActionResponse::new(self.manager().draw_destination_cards(player_id))
+    }
 }
 
 #[rocket::async_trait]

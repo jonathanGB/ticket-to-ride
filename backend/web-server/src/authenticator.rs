@@ -130,7 +130,7 @@ impl<'r> FromRequest<'r> for Authenticator {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use rocket::local::blocking::Client;
 
