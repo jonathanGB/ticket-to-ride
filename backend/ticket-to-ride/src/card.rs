@@ -10,7 +10,10 @@ use std::iter::repeat;
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
-const NUM_OPEN_TRAIN_CARDS: usize = 5;
+/// The maximum number of train cards present in the open-faced deck.
+/// It is possible to have fewer than that, if we have no other train cards
+/// left in any other decks.
+pub const NUM_OPEN_TRAIN_CARDS: usize = 5;
 const NUM_WILD_CARDS: usize = 14;
 const NUM_NON_WILD_CARDS: usize = 12;
 const WILD_CARD_LIMIT: usize = 3;

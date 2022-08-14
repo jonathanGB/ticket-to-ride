@@ -41,6 +41,14 @@ pub struct SelectDestinationCardsRequest {
     pub destination_cards_decisions: SmallVec<[bool; NUM_DRAWN_DESTINATION_CARDS]>,
 }
 
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
+#[serde(crate = "rocket::serde")]
+/// Expected request when calling [`crate::router::draw_open_train_card()`].
+pub struct DrawOpenTrainCardRequest {
+    /// The index of the open train card to draw.
+    pub card_index: usize,
+}
+
 #[cfg(test)]
 mod tests {
     use smallvec::smallvec;
@@ -99,6 +107,17 @@ mod tests {
             serde_json::from_str::<SelectDestinationCardsRequest>(
                 r#"{ "destination_cards_decisions": [true, false, true] }"#
             )?,
+            request
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn json_to_draw_open_train_card_request() -> serde_json::Result<()> {
+        let request = DrawOpenTrainCardRequest { card_index: 3 };
+        assert_eq!(
+            serde_json::from_str::<DrawOpenTrainCardRequest>(r#"{ "card_index": 3 }"#)?,
             request
         );
 

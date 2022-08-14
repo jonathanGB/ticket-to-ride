@@ -479,12 +479,46 @@ impl Manager {
 
         Ok(())
     }
+
+    /// Allows a given player to draw a train card from the open-faced deck.
+    ///
+    /// Returns an `Err` if either:
+    ///   * We are not in [`GamePhase::Playing`], nor [`GamePhase::LastTurn`].
+    ///   * This is not the player's turn.
+    ///   * [`Player::draw_open_train_card`] failed.
+    ///
+    /// Otherwise, returns `Ok(())`, and increments the turn (if the turn is over).
+    /// As all actions that mark the end of the turn, we subsequently verify whether the
+    /// player is done playing. More details in `Manager::maybe_player_and_game_done`.
+    pub fn draw_open_train_card(
+        &mut self,
+        player_id: usize,
+        card_index: usize,
+    ) -> ManagerActionResult {
+        self.has_turn_based_game_started()?;
+
+        let player_index = self.get_player_index(player_id).unwrap();
+        self.is_player_turn(player_index)?;
+
+        let is_turn_over = self.players[player_index].draw_open_train_card(
+            card_index,
+            self.turn.unwrap(),
+            self.card_dealer.as_mut().unwrap(),
+        )?;
+
+        if is_turn_over {
+            self.increment_turn();
+            self.maybe_player_and_game_done(player_index);
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{city::City, map::ClaimedRoute};
+    use crate::{card::TrainColor, city::City, map::ClaimedRoute};
 
     // Tests for `GamePhase`.
 
@@ -981,6 +1015,238 @@ mod tests {
             .is_ok());
 
         assert_eq!(m.turn, Some(2));
+    }
+
+    #[test]
+    fn manager_draw_open_train_card_starting_phase() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        assert_eq!(m.phase, GamePhase::Starting);
+
+        let card_index = 0;
+        assert!(m.draw_open_train_card(player_id, card_index).is_err());
+        assert!(m.draw_open_train_card(other_player_id, card_index).is_err());
+    }
+
+    #[test]
+    fn manager_draw_open_train_card_done_phase() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        m.phase = GamePhase::Done;
+
+        let card_index = 0;
+        assert!(m.draw_open_train_card(player_id, card_index).is_err());
+        assert!(m.draw_open_train_card(other_player_id, card_index).is_err());
+    }
+
+    fn substitute_open_train_card(
+        manager: &mut Manager,
+        card_index: usize,
+        train_card: TrainColor,
+    ) {
+        manager
+            .card_dealer
+            .as_mut()
+            .unwrap()
+            .get_mut_open_train_card_deck()[card_index] = Some(train_card);
+    }
+
+    fn count_train_card_player_has(
+        manager: &mut Manager,
+        player_index: usize,
+        train_card: TrainColor,
+    ) -> u8 {
+        *manager.players[player_index]
+            .get_private_state()
+            .train_cards
+            .get(&train_card)
+            .unwrap()
+    }
+
+    #[test]
+    fn manager_draw_open_train_non_wild_card() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        m.phase = GamePhase::Playing;
+        m.turn = Some(0);
+
+        let (player_id_first, player_id_second) = if m.get_player_index(player_id) == Some(0) {
+            (player_id, other_player_id)
+        } else {
+            (other_player_id, player_id)
+        };
+
+        let card_index = 0;
+
+        // Wrong turn.
+        assert!(m
+            .draw_open_train_card(player_id_second, card_index)
+            .is_err());
+        // Index out of bounds.
+        let card_index = 5;
+        assert!(m.draw_open_train_card(player_id_first, card_index).is_err());
+
+        // Now, should work.
+        let card_index = 0;
+        let train_card = TrainColor::Blue;
+        substitute_open_train_card(&mut m, card_index, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 0, train_card);
+
+        assert!(m.draw_open_train_card(player_id_first, card_index).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 0, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(0));
+
+        // Wrong turn.
+        assert!(m
+            .draw_open_train_card(player_id_second, card_index)
+            .is_err());
+
+        // Drawing again should end the turn.
+        let train_card = TrainColor::Orange;
+        substitute_open_train_card(&mut m, card_index, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 0, train_card);
+
+        assert!(m.draw_open_train_card(player_id_first, card_index).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 0, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(1));
+
+        // Wrong turn, second player is now playing.
+        assert!(m.draw_open_train_card(player_id_first, card_index).is_err());
+
+        // Second player can now draw.
+        let card_index = 4;
+        let train_card = TrainColor::Green;
+        substitute_open_train_card(&mut m, card_index, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 1, train_card);
+
+        assert!(m.draw_open_train_card(player_id_second, card_index).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 1, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(1));
+
+        // And draw again, which ends the turn.
+        let card_index = 2;
+        let train_card = TrainColor::Pink;
+        substitute_open_train_card(&mut m, card_index, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 1, train_card);
+
+        assert!(m.draw_open_train_card(player_id_second, card_index).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 1, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(2));
+    }
+
+    #[test]
+    fn manager_draw_open_train_wild_card() {
+        let mut m = Manager::new();
+
+        let player_id = m.add_player().unwrap();
+        let other_player_id = m.add_player().unwrap();
+
+        assert!(m.set_ready(player_id, true).is_ok());
+        assert!(m.set_ready(other_player_id, true).is_ok());
+
+        m.phase = GamePhase::LastTurn;
+        m.turn = Some(0);
+
+        let (player_id_first, player_id_second) = if m.get_player_index(player_id) == Some(0) {
+            (player_id, other_player_id)
+        } else {
+            (other_player_id, player_id)
+        };
+
+        assert_eq!(m.players[0].get_public_state().is_done_playing, false);
+        assert_eq!(m.players[1].get_public_state().is_done_playing, false);
+
+        // Now, drawing a wild card works, but ends the turn.
+        let card_index = 3;
+        let train_card = TrainColor::Wild;
+        substitute_open_train_card(&mut m, card_index, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 0, train_card);
+
+        assert!(m.draw_open_train_card(player_id_first, card_index).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 0, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(1));
+
+        assert!(m.players[0].get_public_state().is_done_playing);
+        assert_eq!(m.players[1].get_public_state().is_done_playing, false);
+
+        // Second player draws a non-wild card.
+        let card_index = 2;
+        let train_card = TrainColor::Black;
+        substitute_open_train_card(&mut m, card_index, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 1, train_card);
+
+        assert!(m.draw_open_train_card(player_id_second, card_index).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 1, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(1));
+
+        // Second draw fails if trying to draw a wild card.
+        let card_index = 2;
+        let train_card = TrainColor::Wild;
+        substitute_open_train_card(&mut m, card_index, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 1, train_card);
+
+        assert!(m.draw_open_train_card(player_id_first, card_index).is_err());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 1, train_card),
+            num_train_card
+        );
+        assert_eq!(m.turn, Some(1));
+
+        assert!(m.players[0].get_public_state().is_done_playing);
+        assert_eq!(m.players[1].get_public_state().is_done_playing, false);
+
+        // Second player draws again a non-wild card.
+        let card_index = 3;
+        let train_card = TrainColor::White;
+        substitute_open_train_card(&mut m, card_index, train_card);
+        let num_train_card = count_train_card_player_has(&mut m, 1, train_card);
+
+        assert!(m.draw_open_train_card(player_id_second, card_index).is_ok());
+        assert_eq!(
+            count_train_card_player_has(&mut m, 1, train_card),
+            num_train_card + 1
+        );
+        assert_eq!(m.turn, Some(2));
+
+        assert!(m.players[0].get_public_state().is_done_playing);
+        assert!(m.players[1].get_public_state().is_done_playing);
+        assert_eq!(m.phase, GamePhase::Done);
     }
 
     #[test]

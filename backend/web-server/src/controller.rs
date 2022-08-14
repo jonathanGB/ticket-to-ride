@@ -191,6 +191,19 @@ impl<'a> WriteController<'a> {
 
         ActionResponse::new(self.manager().draw_destination_cards(player_id))
     }
+
+    #[inline]
+    pub(crate) fn draw_open_train_card(
+        &mut self,
+        draw_open_train_card_request: DrawOpenTrainCardRequest,
+    ) -> ActionResponse {
+        let player_id = self.player_id;
+
+        ActionResponse::new(
+            self.manager()
+                .draw_open_train_card(player_id, draw_open_train_card_request.card_index),
+        )
+    }
 }
 
 #[rocket::async_trait]

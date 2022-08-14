@@ -151,11 +151,28 @@ pub fn select_destination_cards(
 /// The player must be authenticated to do so.
 ///
 /// More details in [`ticket_to_ride::manager::Manager::draw_destination_cards`].
-#[get("/game/<_>/player/draw_destination_cards")]
+#[post("/game/<_>/player/draw_destination_cards")]
 pub fn draw_destination_cards(mut write_controller: WriteController) -> Json<ActionResponse> {
     Json(write_controller.draw_destination_cards())
 }
 
+/// Allows a player to draw one train card from the open-faced deck.
+/// The player must be authenticated to do so.
+///
+/// More details in [`ticket_to_ride::manager::Manager::draw_open_train_card`].
+#[post(
+    "/game/<_>/player/draw_open_train_card",
+    format = "json",
+    data = "<draw_open_train_card_request>"
+)]
+pub fn draw_open_train_card(
+    mut write_controller: WriteController,
+    draw_open_train_card_request: Json<DrawOpenTrainCardRequest>,
+) -> Json<ActionResponse> {
+    Json(write_controller.draw_open_train_card(draw_open_train_card_request.into_inner()))
+}
+
+// TODO: Add integration tests.
 /// Retrieves the game state. The player must be authenticated to do so.
 ///
 /// More details in [`ticket_to_ride::manager::Manager::get_state`].
