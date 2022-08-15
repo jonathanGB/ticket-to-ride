@@ -8,7 +8,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   overflow: hidden;
   position: relative;
 }
@@ -32,6 +32,7 @@ form {
 h1 {
   font-size: 10rem;
   margin: 0rem;
+  margin-top: 10vh;
   color: #FCFBF4;
   -webkit-text-stroke: 2px #3A689B;
 }
@@ -53,4 +54,8 @@ h1 {
 
 .create-button:hover {
   background: linear-gradient(to top right, #2D537A 15%, #3A689B 50%, #2D537A 85%);
+}
+
+.train{
+  margin-bottom: 5vh;
 }

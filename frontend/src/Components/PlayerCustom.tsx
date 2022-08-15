@@ -17,7 +17,13 @@ class PlayerCustom extends React.Component<
     } else {
       className = "playerColor-default";
     }
-
+    if(this.props.isSelf){
+      return (
+        <div className={className} id="playerCustomSelf">
+          <div className="container">{this.props.name}</div>
+        </div>
+      );
+    }
     return (
       <div className={className} id="playerCustom">
         <div className="container">{this.props.name}</div>

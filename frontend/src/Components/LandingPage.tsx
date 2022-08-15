@@ -21,7 +21,9 @@ class LandingPage extends React.Component {
           </form>
         </div>
 
+        <div className="train">
         <TrainAnimation />
+        </div>
       </div>
     );
   }

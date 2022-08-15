@@ -6,12 +6,14 @@ import Game from "./Game";
 
 const Main = () => {
   return (
-    <Routes>
+    <div className="MainHeader">
+      <Routes>
       {" "}
       {/* The Switch decides which component to show based on the current URL.*/}
       <Route path="/" element={<LandingPage />} />
       <Route path="game/*" element={<Game />} />
     </Routes>
+    </div>
   );
 };
 

@@ -7,6 +7,7 @@
     transform: translate3d(-1000px, 0, 0);
   }
 }
+/* fix overflow */
 .background {
   position: absolute;
   opacity: 0.25;
