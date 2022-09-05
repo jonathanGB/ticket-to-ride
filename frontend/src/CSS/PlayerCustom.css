@@ -1,5 +1,5 @@
 #playerCustom {
-  border-style: double;
+  border-style: solid;
   border-radius: 1rem;
   width: 200px;
   height: 200px;
@@ -14,8 +14,9 @@
   font-size: 36px;
   font-weight: 400px;
 }
-#playerCustomSelf{
-  border-style: double;
+
+#playerCustomSelf {
+  border-style: solid;
   border-radius: 1rem;
   width: 100%;
   height: 100%;
@@ -29,45 +30,52 @@
   font-size: 36px;
   font-weight: 400px;
 }
+
 input {
   background-color: #81a6d8;
   border-color: #81a6d8;
   box-shadow: none;
   border-style: none;
 }
-.playerColor-default {
-  background-color: #81a6d8;
-  border-color: #81a6d8;
-}
+
 .playerColor-red {
   border-color: #b23a48;
   background-color: #b23a48;
 }
+
 .playerColor-orange {
   border-color: #db9039;
   background-color: #db9039;
 }
+
 .playerColor-yellow {
   border-color: #dbda60;
   background-color: #dbda60;
 }
+
 .playerColor-green {
   border-color: #33c191;
   background-color: #33c191;
 }
+
 .playerColor-blue {
   border-color: #28b7e5;
   background-color: #28b7e5;
 }
+
 .playerColor-pink {
   border-color: #cf8298;
   background-color: #cf8298;
 }
+
 .playerColor-black {
   border-color: #3e4756;
   background-color: #3e4756;
 }
+
 .playerColor-white {
   border-color: #f0e1d1;
   background-color: #f0e1d1;
 }
+
+/*# sourceMappingURL=PlayerCustom.css.map */

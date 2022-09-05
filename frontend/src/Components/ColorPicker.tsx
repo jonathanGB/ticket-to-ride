@@ -9,7 +9,7 @@ class ColorPicker extends React.Component<
   constructor(props: any) {
     super(props);
   }
-
+  // TODO: make each color its own component to add X's
   render() {
     return (
       <div className="ColorPicker-header">

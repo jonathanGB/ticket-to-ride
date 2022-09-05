@@ -3,11 +3,13 @@ import "../CSS/App.css";
 import Lobby from "./Lobby";
 import { GameState } from "../GameState/GameState";
 import { GamePhase } from "../GameState/GamePhase";
+import Starting from "./Starting";
+import { PlayerState } from "../GameState/PlayerState";
 
-class Game extends React.Component<{}, { gameState: GameState }> {
-  constructor(props: {} | Readonly<{}>) {
+class Game extends React.Component<{}, { gameState: GameState, selfPlayerState: PlayerState }> {
+  constructor(props: any) {
     super(props);
-    this.state = { gameState: new GameState() };
+    this.state = { gameState: new GameState(), selfPlayerState: new PlayerState() };
     this.getGameState();
   }
   private async getGameState() {
@@ -21,17 +23,24 @@ class Game extends React.Component<{}, { gameState: GameState }> {
     }
     setTimeout(this.getGameState.bind(this), 500);
   }
+  changePlayerState = (update: PlayerState) => {
+    this.setState({selfPlayerState: update});
+  }
 
   render() {
     //lobby has a different view than the other stages
     if (this.state.gameState.phase == GamePhase.InLobby) {
       return (
         <div className="Game-header">
-          <Lobby gameState={this.state.gameState} />
+          <Lobby gameState={this.state.gameState} selfPlayerState={this.changePlayerState} />
         </div>
       );
     } else {
-      console.log("Not in Lobby");
+      return (
+        <div className="Starting">
+          <Starting gameState={this.state.gameState} selfPlayerState={this.state.selfPlayerState} />
+        </div>
+      );
     }
   }
 }

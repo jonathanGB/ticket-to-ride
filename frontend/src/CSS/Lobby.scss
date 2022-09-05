@@ -42,14 +42,26 @@
   height: 20vh;
   min-width: 30vw;
   min-height: 20vh;
+  margin-bottom: 3vh;
 }
 input {
-  margin-top: 1vh;
-  margin-bottom: 1vh;
+  margin-bottom: 3vh;
   height: 5vh;
   width: 100%;
-  width: auto;
   font-size: 2rem;
+}
+.textField {
+  width: 20vw;
+  background-color: #D9D9D9;
+  color: #3e4756;;
+  font-weight: lighter;
+}
+::placeholder {
+  color: #A2ACBD;
+}
+.submitButton {
+  width: 10vw;
+  color: white;
 }
 .playerChoiceContainer{
   width: 30vw;
@@ -59,9 +71,8 @@ input {
   column-gap: .3em;
   align-items: center;
   font-family: sans-serif;
-  font-size: 1.5rem;
-  margin-bottom: 5px;
-  --checked-color: hotpink;
+  font-size: 1.75rem;
+  --checked-color: #F8FC4F;
   --unchecked-color: #aaa;
 }
 
@@ -69,7 +80,7 @@ input {
   font-size: inherit;
   appearance: none;
   height: 1em;
-  width: 1.5em;
+  width: 2em;
   margin: 0;
   border-radius: 1em;
   background-color: var(--unchecked-color);

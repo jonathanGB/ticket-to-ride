@@ -3,8 +3,9 @@
   align-items: center;
   flex-direction: row;
   flex-wrap: wrap;
-  justify-content: space-evenly;
+  justify-content: space-between;
   width: 30vw;
+  margin-bottom: 3vh;
 }
 .color {
   border-style: double;

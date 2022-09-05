@@ -43,9 +43,7 @@ type UpdatePlayerRequest =
   | ChangePlayerNameRequest
   | ChangePlayerColorRequest;
 
-class Lobby extends React.Component<
-  { gameState: GameState },
-  { myName?: string }
+class Lobby extends React.Component<{ gameState: GameState, selfPlayerState: any }
 > {
   constructor(props: any) {
     super(props);
@@ -111,22 +109,21 @@ class Lobby extends React.Component<
     let selfPlayer: PlayerState = new PlayerState();
     if (this.props.gameState.players_state) {
       this.props.gameState.players_state.forEach((player) => {
-        console.log("player:", player);
         if (player.private_player_state != null) {
           selfPlayer = player;
-          console.log("reached self");
         } else {
-          console.log("reached other");
           namesList.push(
             <PlayerCustom
               name={player.public_player_state.name}
               color={player.public_player_state.color}
               isSelf={false}
+              isReady={player.public_player_state.is_ready}
             ></PlayerCustom>
           );
         }
       });
     }
+    this.props.selfPlayerState(selfPlayer);
     while (namesList.length < 4) {
       namesList.push(<PlayerPlaceHolder></PlayerPlaceHolder>);
     }
@@ -143,6 +140,7 @@ class Lobby extends React.Component<
                 color={selfPlayer.public_player_state.color}
                 name={selfPlayer.public_player_state.name}
                 isSelf={true}
+                isReady={selfPlayer.public_player_state.is_ready}
               />
             </div>
             <div className="playerChoiceContainer">
@@ -152,21 +150,22 @@ class Lobby extends React.Component<
               />
               <form onSubmit={this.handleNameChange}>
                 <input
+                  className="textField"
                   name="playerName"
                   type="text"
                   placeholder="Enter Player Name"
                 />
-                <input type="submit" value="Submit" />
+                <input type="submit" value="Submit"  className="submitButton"/>
               </form>
             </div>
             <label className="check-box">
+              Player Ready?
               <input
                 type="checkbox"
                 className="check-box__switcher"
                 onChange={this.handleIsReadyChange}
                 checked={selfPlayer.public_player_state.is_ready}
               />
-              Player Ready?
             </label>
           </div>
           <div className="OtherPlayerSection">
