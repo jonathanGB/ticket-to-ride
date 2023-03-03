@@ -1,5 +1,5 @@
 import React from "react";
-import "../Styling/PlayerPlaceHolder.styles.tsx";
+import "./PlayerPlaceHolder.styles.tsx";
 
 class PlayerPlaceHolder extends React.Component<{}, {}> {
   constructor(props: {} | {}) {

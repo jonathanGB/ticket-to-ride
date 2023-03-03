@@ -1,5 +1,5 @@
 import React from "react";
-import "../CSS/TrainAnimation.css";
+import "./TrainAnimation.css";
 
 class TrainAnimation extends React.Component<{}, {}> {
   constructor(props: any) {

@@ -1,5 +1,4 @@
 import React from "react";
-import "../Styling/App.css";
 import * as Styles from "./Game.styles";
 import Lobby from "./Lobby";
 import { GameState } from "../GameState/GameState";

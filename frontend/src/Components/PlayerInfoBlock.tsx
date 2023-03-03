@@ -1,5 +1,5 @@
 import React from "react";
-import "../Styling/PlayerInfoBlock.styles.tsx";
+import "./PlayerInfoBlock.styles.tsx";
 import { PlayerState } from "../GameState/PlayerState";
 
 class PlayerInfoBlock extends React.Component<{ selfPlayerState: PlayerState }> {

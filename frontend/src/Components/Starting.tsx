@@ -1,5 +1,5 @@
 import React from "react";
-import "../Styling/Starting.styles.tsx";
+import "./Starting.styles.tsx";
 import { GameState } from "../GameState/GameState";
 import Map from "./Map";
 import PlayerInfoBlock from "./PlayerInfoBlock";
