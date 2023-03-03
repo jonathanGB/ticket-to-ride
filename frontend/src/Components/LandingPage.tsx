@@ -1,6 +1,7 @@
 import React from "react";
-import "../CSS/LandingPage.css";
+import * as Styles from "./LandingPage.styles"
 import TrainAnimation from "./TrainAnimation";
+
 
 class LandingPage extends React.Component {
   constructor(props: {} | Readonly<{}>) {
@@ -8,20 +9,21 @@ class LandingPage extends React.Component {
   }
   render() {
     return (
-      <div className="LandingPage-header">
-        <h1>Ticket to Ride</h1>
+      <div className={Styles.landingPageStyle}>
+        <h1 className={Styles.h1Style}>Ticket to Ride</h1>
 
-        <div className="button-wrapper">
-          <form className="buttonForm" action="/create" method="post">
+        <div className={Styles.buttonWrapperStyle}>
+          <form action="/create" method="post" className={
+            Styles.formStyle}>
             <input
-              className="create-button"
+              className={Styles.createButtonStyle}
               type="submit"
               value="All aboard!"
             />
           </form>
         </div>
 
-        <div className="train">
+        <div className={Styles.trainStyle}>
         <TrainAnimation />
         </div>
       </div>

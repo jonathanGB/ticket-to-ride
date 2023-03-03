@@ -1,5 +1,5 @@
 import React from "react";
-import "../CSS/App.css";
+import * as Styles from "./App.styles"
 import Main from "./Main";
 
 class App extends React.Component {
@@ -8,7 +8,7 @@ class App extends React.Component {
   }
   render() {
     return (
-      <div className="main-header">
+      <div className={Styles.appStyle}>
         <Main />
       </div>
     );

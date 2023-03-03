@@ -1,5 +1,5 @@
 import React, { ChangeEvent, CSSProperties, FormEvent, ReactNode } from "react";
-import "../CSS/Lobby.css";
+import * as Styles from "./Lobby.styles";
 import PlayerCustom from "./PlayerCustom";
 import ColorPicker from "./ColorPicker";
 import PlayerColor from "../GameState/PlayerColor";
@@ -132,10 +132,10 @@ class Lobby extends React.Component<{ gameState: GameState, selfPlayerState: any
   render() {
     let { namesList, selfPlayer } = this.getOtherPlayers();
     return (
-      <div className="Lobby-header">
-        <div className="PlayerSections">
-          <div className="SelfPlayerSection">
-            <div className="SelfPlayer-header">
+      <div className={Styles.lobbyStyle.lobbyHeaderStyle}>
+        <div className={Styles.lobbyStyle.playerSectionsStyle}>
+          <div className={Styles.lobbyStyle.selfPlayerSectionStyle}>
+            <div className={Styles.lobbyStyle.selfPlayerHeaderStyle}>
               <PlayerCustom
                 color={selfPlayer.public_player_state.color}
                 name={selfPlayer.public_player_state.name}
@@ -143,14 +143,14 @@ class Lobby extends React.Component<{ gameState: GameState, selfPlayerState: any
                 isReady={selfPlayer.public_player_state.is_ready}
               />
             </div>
-            <div className="playerChoiceContainer">
+            <div className={Styles.lobbyStyle.playerChoiceContainerStyle}>
               <ColorPicker
                 selfColor={selfPlayer.public_player_state.color}
                 onChange={this.handleColorChange}
               />
               <form onSubmit={this.handleNameChange}>
                 <input
-                  className="textField"
+                  className={Styles.lobbyStyle.textFieldStyle}
                   name="playerName"
                   type="text"
                   placeholder="Enter Player Name"
@@ -158,21 +158,20 @@ class Lobby extends React.Component<{ gameState: GameState, selfPlayerState: any
                 <input type="submit" value="Submit"  className="submitButton"/>
               </form>
             </div>
-            <label className="check-box">
+            <label>
               Player Ready?
               <input
                 type="checkbox"
-                className="check-box__switcher"
                 onChange={this.handleIsReadyChange}
                 checked={selfPlayer.public_player_state.is_ready}
               />
             </label>
           </div>
-          <div className="OtherPlayerSection">
-            <div className="OtherPlayers-header">{namesList}</div>
+          <div>
+            <div className={Styles.lobbyStyle.otherPlayersHeaderStyle}>{namesList}</div>
           </div>
         </div>
-        <div className="TrainContainer">
+        <div className={Styles.lobbyStyle.trainContainerStyle}>
           <TrainAnimation />
         </div>
       </div>

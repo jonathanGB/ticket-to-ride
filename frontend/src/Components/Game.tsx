@@ -1,5 +1,6 @@
 import React from "react";
-import "../CSS/App.css";
+import "../Styling/App.css";
+import * as Styles from "./Game.styles";
 import Lobby from "./Lobby";
 import { GameState } from "../GameState/GameState";
 import { GamePhase } from "../GameState/GamePhase";
@@ -31,13 +32,13 @@ class Game extends React.Component<{}, { gameState: GameState, selfPlayerState: 
     //lobby has a different view than the other stages
     if (this.state.gameState.phase == GamePhase.InLobby) {
       return (
-        <div className="Game-header">
+        <div className={Styles.mainStyle.gameHeaderStyle}>
           <Lobby gameState={this.state.gameState} selfPlayerState={this.changePlayerState} />
         </div>
       );
     } else {
       return (
-        <div className="Starting">
+        <div className={Styles.mainStyle.startingStyle}>
           <Starting gameState={this.state.gameState} selfPlayerState={this.state.selfPlayerState} />
         </div>
       );
