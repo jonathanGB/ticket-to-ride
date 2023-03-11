@@ -7,6 +7,7 @@ import TrainAnimation from "./TrainAnimation";
 import { GameState } from "../GameState/GameState";
 import { PlayerState } from "../GameState/PlayerState";
 import PlayerPlaceHolder from "./PlayerPlaceHolder";
+import { TextField, Toggle } from "@fluentui/react";
 
 interface PlayerNameFormCollection extends HTMLFormControlsCollection {
   playerName: HTMLInputElement;
@@ -34,7 +35,7 @@ interface ChangePlayerNameRequest extends URL {
 
 interface ChangePlayerColorRequest extends URL {
   request: {
-    new_color: PlayerColor;
+    new_color: string;
   };
 }
 
@@ -43,25 +44,28 @@ type UpdatePlayerRequest =
   | ChangePlayerNameRequest
   | ChangePlayerColorRequest;
 
-class Lobby extends React.Component<{ gameState: GameState, selfPlayerState: any }
-> {
+class Lobby extends React.Component<{ gameState: GameState, selfPlayerState: any }, {playerNameInput: string}> 
+{
   constructor(props: any) {
     super(props);
+    this.state = { playerNameInput: ''};
+    
   }
-  handleIsReadyChange = (event: ChangeEvent<HTMLInputElement>) => {
-    console.log(event.target.checked);
+  handleIsReadyChange = (e: any) => {
     this.updatePlayer({
       url: `${window.location}/player/is_ready`,
       request: {
-        is_ready: event.target.checked,
+        // @ts-ignore
+        is_ready: !e.target.checked,
       },
     });
   };
-  handleColorChange = (event: ChangeEvent<HTMLInputElement>) => {
+  handleColorChange = (event: any) => {
+    console.log(event)
     this.updatePlayer({
       url: `${window.location}/player/color`,
       request: {
-        new_color: event.target.value as PlayerColor,
+        new_color: (event.target.textContent).toLowerCase()
       },
     });
   };
@@ -74,6 +78,12 @@ class Lobby extends React.Component<{ gameState: GameState, selfPlayerState: any
       },
     });
   };
+  onChangeplayerNameInput = 
+    (_event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string) => {
+      if (newValue && newValue.length <= 11) {
+        this.setState({playerNameInput: newValue});
+      }
+    }
   private updatePlayer = async (updatePlayerRequest: UpdatePlayerRequest) => {
     const { url, request } = updatePlayerRequest;
 
@@ -149,23 +159,18 @@ class Lobby extends React.Component<{ gameState: GameState, selfPlayerState: any
                 onChange={this.handleColorChange}
               />
               <form onSubmit={this.handleNameChange}>
-                <input
+                <TextField
                   className={Styles.lobbyStyle.textFieldStyle}
                   name="playerName"
                   type="text"
                   placeholder="Enter Player Name"
+                  onChange={this.onChangeplayerNameInput}
+                  value={this.state.playerNameInput}
                 />
                 <input type="submit" value="Submit"  className="submitButton"/>
               </form>
             </div>
-            <label>
-              Player Ready?
-              <input
-                type="checkbox"
-                onChange={this.handleIsReadyChange}
-                checked={selfPlayer.public_player_state.is_ready}
-              />
-            </label>
+              <Toggle label="Player Ready?" onChange={this.handleIsReadyChange} checked={selfPlayer.public_player_state.is_ready}/>
           </div>
           <div>
             <div className={Styles.lobbyStyle.otherPlayersHeaderStyle}>{namesList}</div>
@@ -180,3 +185,4 @@ class Lobby extends React.Component<{ gameState: GameState, selfPlayerState: any
 }
 
 export default Lobby;
+

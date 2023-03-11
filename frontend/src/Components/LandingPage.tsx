@@ -11,7 +11,6 @@ class LandingPage extends React.Component {
     return (
       <div className={Styles.landingPageStyle}>
         <h1 className={Styles.h1Style}>Ticket to Ride</h1>
-
         <div className={Styles.buttonWrapperStyle}>
           <form action="/create" method="post" className={
             Styles.formStyle}>

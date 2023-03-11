@@ -2,6 +2,7 @@ import React from "react";
 import * as Styles from "./ColorPicker.styles";
 import { getCSSColorHexCode } from "./PlayerCustom.styles";
 import PlayerColor from "../GameState/PlayerColor";
+import { DefaultButton } from "@fluentui/react";
 
 class ColorPicker extends React.Component<
   { selfColor?: PlayerColor; onChange: any },
@@ -17,7 +18,7 @@ class ColorPicker extends React.Component<
       let inputStyle={
         borderColor: getCSSColorHexCode(color),
         backgroundColor: getCSSColorHexCode(color),
-        Color: getCSSColorHexCode(color),
+        color: getCSSColorHexCode(color),
         borderStyle: "double",
         borderRadius: "1rem",
         width: "10vh",
@@ -25,11 +26,12 @@ class ColorPicker extends React.Component<
         margin: "1vh"
       }
       inputList.push(
-        <input
+        <DefaultButton
           style={inputStyle}
+          text={color}
           id={color}
           onClick={this.props.onChange}
-          value={color}
+          value={color.toLowerCase()}
         />
       )
     }
