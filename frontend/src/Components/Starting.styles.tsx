@@ -10,6 +10,8 @@ export const appStyle = mergeStyles({
   justifyContent: "center",
   fontSize: "calc(10px + 2vmin)"
 });
-// .Starting-header {
-//     background-color: #aec8eb;
-//   }
+export const startingHeader = mergeStyles({
+    backgroundColor: "#aec8eb",
+    width: 0,
+    height: 0,
+})

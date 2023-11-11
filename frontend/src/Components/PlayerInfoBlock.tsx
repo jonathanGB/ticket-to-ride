@@ -1,5 +1,5 @@
 import React from "react";
-import "./PlayerInfoBlock.styles.tsx";
+import * as Styles from "./PlayerInfoBlock.styles"
 import { PlayerState } from "../GameState/PlayerState";
 
 class PlayerInfoBlock extends React.Component<{ selfPlayerState: PlayerState }> {
@@ -8,7 +8,7 @@ class PlayerInfoBlock extends React.Component<{ selfPlayerState: PlayerState }> 
   }
 
   render() {
-    return <div className="PlayerInfo-header">
+    return <div className={Styles.PlayerInfoStyle}>
         <div className="Name-header">
           <h2>{this.props.selfPlayerState.public_player_state.name}</h2>
           <h2>{`${this.props.selfPlayerState.public_player_state.points}`}</h2>
